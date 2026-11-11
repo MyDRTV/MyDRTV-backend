@@ -1,0 +1,10 @@
+node_modules
+dist
+coverage
+.git
+*.tsbuildinfo
+
+# Adgangsoplysninger må ikke ende i imaget
+.env
+.env.*
+!.env.example

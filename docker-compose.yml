@@ -1,18 +1,51 @@
 services:
+  # NestJS-backenden, bygget fra Dockerfile
+  backend:
+    build: .
+    restart: unless-stopped
+
+    # Brugernavn, password og databasenavn hentes fra .env
+    env_file: .env
+
+    # Inde i Docker hedder databasen "db" og lytter på 5432.
+    # Det overskriver DB_HOST/DB_PORT fra .env, som peger på Postgres.app lokalt.
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      PORT: 3000
+
+    # Backenden udstilles på port 3000 (kan ændres med APP_PORT)
+    ports:
+      - '${APP_PORT:-3000}:3000'
+
+    # Start først backenden, når databasen svarer
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # PostgreSQL-databasen
   db:
     image: postgres:18
-    container_name: mydrtv_postgres
+    restart: unless-stopped
 
+    # Opretter bruger og database første gang, ud fra .env
     environment:
-      POSTGRES_USER: mydrtv
-      POSTGRES_PASSWORD: mydrtv_local_password
-      POSTGRES_DB: mydrtv
+      POSTGRES_USER: ${DB_USERNAME:?Mangler DB_USERNAME i .env}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Mangler DB_PASSWORD i .env}
+      POSTGRES_DB: ${DB_DATABASE:?Mangler DB_DATABASE i .env}
 
-    ports:
-      - '127.0.0.1:5434:5432'
+    # Ingen "ports": databasen kan kun nås af backenden på Dockers interne netværk,
+    # ikke fra internettet.
 
+    # Dataen gemmes i et volume, så den overlever genstart
     volumes:
-      - postgres18_data:/var/lib/postgresql
+      - postgres_data:/var/lib/postgresql
+
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
 volumes:
-  postgres18_data:
+  postgres_data:

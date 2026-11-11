@@ -1,132 +1,314 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# MyDRTV – backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Backend til MyDRTV, bygget med **NestJS** og **TypeORM** oven på **PostgreSQL**.
+Backenden og databasen kører i **Docker** på en Hetzner-server, så alle bruger den samme database.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+## Overblik
 
-## Description
+Projektet kan køre på to måder:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
+```
+LOKALT (udvikling)                         SERVER (Hetzner)
+──────────────────                         ────────────────
+npm run start:dev                          docker compose up -d --build
+        │                                          │
+        ▼                                  ┌───────┴──────── Docker ─────────┐
+NestJS på din Mac :3000                    │ backend (NestJS) :3000 ◀── internettet
+        │                                  │        │                        │
+        ▼  127.0.0.1:5433                  │        ▼  db:5432 (internt)     │
+Postgres.app på din Mac                    │ db (postgres:18) + volume       │
+                                           └─────────────────────────────────┘
 ```
 
-## Compile and run the project
+- **Lokalt** udvikler vi med hot reload mod vores egen Postgres.app på port 5433.
+- **På serveren** kører både backenden og databasen som containere, styret af `docker-compose.yml`. Når nogen poster en film, gemmes den i serverens database, og alle, der kalder `http://DIN-IP:3000`, ser den.
 
-```bash
-# development
-$ npm run start
+Begge måder læser den samme slags `.env`. Docker overskriver selv `DB_HOST` og `DB_PORT`, så backenden finder databasen inde i Docker.
 
-# watch mode
-$ npm run start:dev
+## Mappestruktur
 
-# production mode
-$ npm run start:prod
+```
+MyDRTV-backend/
+├── src/
+│   ├── main.ts               # Starter Nest-appen på PORT (standard 3000) og slår CORS til
+│   ├── app.module.ts         # Rodmodul: indlæser .env og opretter DB-forbindelsen
+│   ├── app.controller.ts     # GET /  → "Hello World!" (sundhedstjek)
+│   ├── app.service.ts
+│   └── movies/               # Feature-modul for film
+│       ├── movies.module.ts      # Samler controller, service og entity
+│       ├── movies.controller.ts  # Routes: GET /movies
+│       ├── movies.service.ts     # Forretningslogik + databasekald via repository
+│       └── movie.entity.ts       # Mapper tabellen "movies" til en TypeScript-klasse
+├── test/                     # End-to-end-tests (Jest + Supertest)
+├── Dockerfile                # Opskrift på backend-imaget
+├── docker-compose.yml        # Starter backend + database sammen
+├── .dockerignore             # Holder node_modules, dist og .env ude af imaget
+├── .env.example              # Skabelon til .env
+├── .env                      # Jeres egne værdier (committes ikke)
+└── package.json
 ```
 
-## Run tests
+### Sådan hænger lagene sammen
 
-```bash
-# unit tests
-$ npm run test
+Hver feature (fx `movies`) er sit eget **modul** med tre lag:
 
-# e2e tests
-$ npm run test:e2e
+1. **Controller** (`movies.controller.ts`) tager imod HTTP-requesten og kalder servicen.
+2. **Service** (`movies.service.ts`) indeholder logikken og taler med databasen gennem et TypeORM-`Repository<Movie>`.
+3. **Entity** (`movie.entity.ts`) beskriver tabellen `movies` og dens kolonner.
 
-# test coverage
-$ npm run test:cov
+`MoviesModule` registrerer entity'en med `TypeOrmModule.forFeature([Movie])`, så repositoryet kan injectes i servicen. `AppModule` importerer `MoviesModule` og opretter selve databaseforbindelsen med `TypeOrmModule.forRootAsync`, som læser forbindelsesoplysningerne fra miljøvariabler via `ConfigModule`.
+
+```
+HTTP → MoviesController.findAll() → MoviesService.findAll() → Repository<Movie>.find() → PostgreSQL
 ```
 
-## Deployment
+Nye features (fx brugere eller favoritter) laves efter samme mønster: `nest g resource <navn>`, en entity, og importér modulet i `AppModule`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+## Docker
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+### `Dockerfile` – opskriften på backenden
 
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
+1. Tager udgangspunkt i `node:24-bookworm-slim`.
+2. Kopierer `package.json` og `package-lock.json` og kører `npm ci`. Det lag caches, så længe afhængighederne ikke ændrer sig.
+3. Kopierer resten af projektet og kører `npm run build`, som oversætter TypeScript til `dist/`.
+4. Starter med `node dist/main.js` på port 3000.
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+`.dockerignore` sørger for, at `node_modules`, `dist` og `.env` ikke kopieres med. Adgangsoplysningerne ligger altså aldrig i imaget. De gives til containeren, når den starter.
 
-## Observability
+### `docker-compose.yml` – backend og database sammen
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+| Service | Hvad den gør |
+|---|---|
+| `backend` | Bygges fra `Dockerfile`. Får brugernavn, password og databasenavn fra `.env`, men `DB_HOST=db` og `DB_PORT=5432` sættes af compose. Udstilles på port 3000. Starter først, når databasen er klar (`healthcheck`). |
+| `db` | `postgres:18`. Opretter bruger og database første gang ud fra `DB_USERNAME`, `DB_PASSWORD` og `DB_DATABASE` i `.env`. Har **ingen** `ports`, så den kan kun nås af backenden på Dockers interne netværk og ikke fra internettet. Dataen ligger i volumet `postgres_data` og overlever genstart. |
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
+Begge services har `restart: unless-stopped`, så de starter igen af sig selv, når serveren genstartes. Det er Dockers svar på `pm2 startup`.
 
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
+> **Hvorfor `db` og ikke `localhost`?** Inde i en container betyder `localhost` containeren selv. Containerne i samme compose-fil finder hinanden på servicenavnet, så backenden når databasen på `db:5432`.
 
-To add it to this project, run this and approve the code it prints at [observe.nestjs.com/link](https://observe.nestjs.com/link) - signing up for free if you have no account:
+## Lokal udvikling
+
+### 1. Installér afhængigheder
 
 ```bash
-$ npx @nestjs/observe link
+npm install
 ```
 
-It installs `@nestjs/observe`, wires it into `AppModule` and `main.ts`, and writes the app key and secret into `.env`, which every `nest start` script (`start`, `start:dev`, `start:debug`) then loads. In production, set `OBSERVE_APP_KEY` and `OBSERVE_APP_SECRET` in the environment instead.
-
-Or do it by hand:
+### 2. Opret `.env`
 
 ```bash
-$ npm install @nestjs/observe
+cp .env.example .env
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/sdk) - it takes a single import and an app key.
+Udfyld den med jeres Postgres.app-oplysninger:
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+```env
+DB_HOST=127.0.0.1
+DB_PORT=5433
+DB_USERNAME=...
+DB_PASSWORD=...
+DB_DATABASE=...
+CORS_ORIGIN=
+```
 
-## Resources
+`DB_HOST`, `DB_PORT`, `DB_USERNAME` og `DB_DATABASE` er påkrævede. Mangler de, stopper appen ved opstart (`getOrThrow`).
 
-Check out a few resources that may come in handy when working with NestJS:
+### 3. Start backenden
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Postgres.app skal køre. Derefter:
 
-## Support
+```bash
+npm run start:dev
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Tjek at det virker:
 
-## Stay in touch
+- http://localhost:3000 → `Hello World!`
+- http://localhost:3000/movies → liste over film
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Vil du teste Docker-setuppet lokalt?
 
-## License
+```bash
+APP_PORT=3001 docker compose up -d --build
+```
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Så kører Docker-versionen på http://localhost:3001 ved siden af `npm run start:dev` på 3000. Databasen i Docker starter tom, så importér data som i trin 7 nedenfor. Stop igen med `docker compose down`.
+
+## Deployment på Hetzner
+
+Skift `DIN-IP` ud med serverens IP fra Hetzner-panelet.
+
+### Del 1: Gør koden klar på din Mac
+
+**1. Test lokalt**, at `npm run start:dev` virker, og at `/movies` returnerer film.
+
+**2. Commit og push til GitHub.**
+
+### Del 2: Sæt serveren op
+
+**3. Log ind på serveren**
+
+```bash
+ssh root@DIN-IP
+```
+
+**4. Installér Docker og git**
+
+```bash
+curl -fsSL https://get.docker.com | sh
+apt install -y git
+```
+
+Tjek at det virker:
+
+```bash
+docker compose version
+```
+
+Node, PostgreSQL og PM2 skal **ikke** installeres på serveren. Det klarer Docker.
+
+**5. Hent koden**
+
+```bash
+git clone https://github.com/MyDRTV/MyDRTV-backend.git
+cd MyDRTV-backend
+```
+
+Er repoet privat, skal du logge ind med dit GitHub-brugernavn og et *personal access token* som password.
+
+**6. Lav serverens `.env`**
+
+```bash
+cp .env.example .env
+nano .env
+```
+
+Udfyld den, og gem med `Ctrl+O`, `Enter`, `Ctrl+X`:
+
+```env
+DB_HOST=db
+DB_PORT=5432
+DB_USERNAME=mydrtv
+DB_PASSWORD=ET-LANGT-TILFÆLDIGT-PASSWORD
+DB_DATABASE=mydrtv
+CORS_ORIGIN=
+```
+
+- Databasen oprettes automatisk med disse oplysninger første gang. Der skal ikke køres `CREATE USER` eller `CREATE DATABASE`.
+- Brug et nyt, stærkt password. Det er ikke det samme som jeres lokale.
+- Når frontenden har en fast adresse, så skriv den i `CORS_ORIGIN`, fx `CORS_ORIGIN=https://mydrtv.dk`.
+
+**7. Start backend og database**
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+Begge services skal stå som `running`, og `db` som `healthy`.
+
+**8. Flyt data fra Postgres.app til serveren**
+
+`synchronize` er `false`, så TypeORM opretter ikke tabeller selv. Tabeller og data skal ind fra jeres lokale database.
+
+På **din Mac** (ikke på serveren), i projektmappen:
+
+```bash
+/Applications/Postgres.app/Contents/Versions/18/bin/pg_dump \
+  -h 127.0.0.1 -p 5433 -U DIT-LOKALE-BRUGERNAVN -d DIN-LOKALE-DATABASE \
+  --no-owner --no-privileges > mydrtv.sql
+
+scp mydrtv.sql root@DIN-IP:~/
+rm mydrtv.sql
+```
+
+- `--no-owner --no-privileges` gør dumpet uafhængigt af, hvilken bruger der ejede tabellerne lokalt.
+- Dumpet indeholder også tabellen `users`, så det må **ikke** committes til GitHub. Slet det, når det er kopieret.
+
+På **serveren**:
+
+```bash
+cd ~/MyDRTV-backend
+docker compose exec -T db psql -U mydrtv -d mydrtv -v ON_ERROR_STOP=1 < ~/mydrtv.sql
+rm ~/mydrtv.sql
+```
+
+Brug det brugernavn og databasenavn, du skrev i serverens `.env`.
+
+**9. Test i browseren:** `http://DIN-IP:3000/movies`
+
+**10. Genstart serveren** og tjek, at alt kommer op af sig selv:
+
+```bash
+reboot
+```
+
+Vent et minut, og åbn `http://DIN-IP:3000/movies` igen.
+
+### Firewall
+
+Opret en firewall i Hetzner-panelet (*Firewalls*), der kun tillader indgående **22** (SSH) og **3000** (backenden). Senere, med domæne og HTTPS: 80 og 443 i stedet for 3000.
+
+Databasen har ingen port udadtil, så den er ikke tilgængelig fra internettet.
+
+> Brug Hetzners firewall frem for `ufw`. Docker åbner selv porte i `iptables` og går uden om `ufw`.
+
+### Når du har ændret noget i koden
+
+Push fra din Mac, og kør så på serveren:
+
+```bash
+ssh root@DIN-IP
+cd MyDRTV-backend
+git pull
+docker compose up -d --build
+```
+
+`--build` bygger imaget igen, også med nye pakker. Der skal ikke køres `npm install` på serveren. Dataen i databasen bevares.
+
+## Nyttige kommandoer
+
+### Docker
+
+```bash
+docker compose up -d --build     # byg og start backend + database
+docker compose ps                # status
+docker compose logs -f backend   # følg backendens log
+docker compose logs -f db        # følg databasens log
+docker compose restart backend   # genstart kun backenden
+docker compose down              # stop og fjern containerne (data bevares)
+docker compose down -v           # stop OG slet volumet – sletter al data!
+docker compose exec db psql -U mydrtv -d mydrtv   # åbn psql i databasen
+```
+
+### Backend
+
+```bash
+npm run start:dev    # udvikling med hot reload
+npm run build        # byg til dist/
+npm run start:prod   # kør den byggede version
+npm run lint         # oxlint
+npm run format       # prettier
+npm run test         # unit-tests
+npm run test:e2e     # end-to-end-tests
+```
+
+## Hvis noget går galt
+
+Se altid fejlene med `docker compose logs backend`.
+
+| Fejl | Betyder |
+|---|---|
+| `Mangler DB_PASSWORD i .env` (eller en anden variabel) | `.env` mangler eller er ikke udfyldt i mappen, hvor du kører `docker compose` |
+| `relation "movies" does not exist` | Tabellerne er ikke importeret. Se trin 8 |
+| `password authentication failed for user ...` | Passwordet i `.env` er ændret, efter databasen blev oprettet. Databasen husker det første password. Ret `.env` tilbage, eller slet volumet med `docker compose down -v` (sletter data) |
+| `ECONNREFUSED ...:5433` lokalt | Postgres.app kører ikke |
+| `port is already allocated` | Noget andet bruger port 3000. Stop det, eller start med `APP_PORT=3001 docker compose up -d` |
+| Browseren siger *CORS error* | Frontendens adresse står ikke i `CORS_ORIGIN` |
+
+## Endpoints
+
+| Metode | Route | Beskrivelse |
+|---|---|---|
+| `GET` | `/` | Sundhedstjek, returnerer `Hello World!` |
+| `GET` | `/movies` | Alle film, sorteret alfabetisk efter titel |
