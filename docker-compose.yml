@@ -14,9 +14,10 @@ services:
       DB_PORT: 5432
       PORT: 3000
 
-    # Backenden udstilles på port 3000 (kan ændres med APP_PORT)
+    # Kun på 127.0.0.1: udefra nås backenden gennem nginx på /api.
+    # Fra serveren selv (og lokalt) stadig på port 3000 (kan ændres med APP_PORT).
     ports:
-      - '${APP_PORT:-3000}:3000'
+      - '127.0.0.1:${APP_PORT:-3000}:3000'
 
     # Start først backenden, når databasen svarer
     depends_on:
@@ -34,8 +35,12 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?Mangler DB_PASSWORD i .env}
       POSTGRES_DB: ${DB_DATABASE:?Mangler DB_DATABASE i .env}
 
-    # Ingen "ports": databasen kan kun nås af backenden på Dockers interne netværk,
-    # ikke fra internettet.
+    # Kun bundet til 127.0.0.1 på serveren: databasen kan ikke nås fra internettet,
+    # kun fra serveren selv. Fra jeres Mac'er nås den gennem en SSH-tunnel:
+    #   ssh -N -L 5434:127.0.0.1:5432 root@DIN-IP
+    # og derefter DB_HOST=127.0.0.1 og DB_PORT=5434 i jeres lokale .env.
+    ports:
+      - '127.0.0.1:${DB_PUBLISH_PORT:-5432}:5432'
 
     # Dataen gemmes i et volume, så den overlever genstart
     volumes:
@@ -46,6 +51,28 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Next.js-websitet. Repoet MyDRTV-frontend-web skal ligge ved siden af dette repo.
+  web:
+    build: ../MyDRTV-frontend-web
+    restart: unless-stopped
+    environment:
+      # Server-side fetch (Server Components) går direkte til backenden inde i Docker
+      API_URL: http://backend:3000
+    depends_on:
+      - backend
+
+  # Den eneste indgang udefra: sender /api til backenden og resten til web
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - '${HTTP_PORT:-80}:80'
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - web
 
 volumes:
   postgres_data:
