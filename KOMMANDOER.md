@@ -1,120 +1,68 @@
 # Kommandoer
 
-Alle de kommandoer, vi har kørt for at sætte MyDRTV op, og hvad de gjorde. De står i den rækkefølge, de blev kørt.
+De kommandoer, vi har brugt til at sætte MyDRTV op, i den rækkefølge de blev kørt. `DIN-IP` er serverens IP-adresse.
 
-`DIN-IP` er serverens IP-adresse. Den står ikke her med vilje.
+## 1. Projektet (Mac)
 
-**Hvor køres den?** Hver kommando er mærket med, hvor den køres:
-- 💻 **Mac**: din egen terminal. Prompten viser dit eget navn.
-- 🖥️ **Server**: Hetzner-serveren, efter `ssh root@DIN-IP`. Prompten viser `root@ubuntu-...`.
+```bash
+nest new MyDRTV-backend                                   # opret NestJS-projektet
+npm install @nestjs/typeorm typeorm pg @nestjs/config     # database og .env
+npm run start:dev                                         # start backenden lokalt
+```
 
----
+## 2. Serveren (på serveren)
 
-## 1. Projektet oprettes (Mac)
+```bash
+ssh root@DIN-IP                                           # log ind (fra Mac)
+curl -fsSL https://get.docker.com | sh                    # installér Docker
+apt install -y git                                        # installér git
+git clone https://github.com/MyDRTV/MyDRTV-backend.git    # hent backend
+git clone https://github.com/MyDRTV/MyDRTV-frontend-web.git   # hent website
+cd MyDRTV-backend
+cp .env.example .env                                      # lav .env
+nano .env                                                 # udfyld .env
+docker compose up -d --build                              # byg og start containerne
+docker compose ps                                         # se status
+docker compose logs -f backend                            # se backendens log
+```
 
-| Kommando | Hvad den gør |
-|---|---|
-| 💻 `nest new MyDRTV-backend` | Opretter et nyt NestJS-projekt med mappestruktur, TypeScript, Jest, lint og formatering |
-| 💻 `npm install @nestjs/typeorm typeorm pg @nestjs/config` | Installerer TypeORM (taler med databasen), driveren til PostgreSQL og config-modulet, der læser `.env` |
-| 💻 `npm run start:dev` | Starter backenden lokalt. Den genstarter selv, når koden ændres |
-| 💻 `git add .` → `git commit -m "..."` → `git push` | Gemmer ændringerne i git og sender dem til GitHub |
+## 3. Data fra Mac til server
 
-## 2. Log ind på serveren
+På Mac:
 
-| Kommando | Hvad den gør |
-|---|---|
-| 💻 `ssh root@DIN-IP` | Logger ind på serveren som `root` (administrator). Root-koden blev nulstillet i Hetzner-panelet: *Rescue → Reset root password* |
-| 🖥️ `exit` | Logger ud af serveren og tilbage til Mac'en |
+```bash
+pg_dump -h 127.0.0.1 -p 5433 -U postgres -d postgres --no-owner --no-privileges > mydrtv.sql
+scp mydrtv.sql root@DIN-IP:~/                             # kopiér til serveren
+rm mydrtv.sql                                             # slet lokalt
+```
 
-## 3. Installér Docker og git på serveren
+På serveren:
 
-| Kommando | Hvad den gør |
-|---|---|
-| 🖥️ `curl -fsSL https://get.docker.com \| sh` | Henter og kører Dockers officielle installationsscript. Installerer Docker og Docker Compose |
-| 🖥️ `apt install -y git` | Installerer git, så serveren kan hente koden fra GitHub |
-| 🖥️ `docker compose version` | Tjekker, at Docker Compose er installeret |
+```bash
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < ~/mydrtv.sql
+rm ~/mydrtv.sql
+```
 
-Node.js og PostgreSQL er **ikke** installeret på serveren. De kører inde i Docker-containere.
+## 4. SSH-nøgler
 
-## 4. Hent koden til serveren
+```bash
+ssh-keygen -t ed25519                                     # lav nøgle (Mac)
+cat ~/.ssh/id_ed25519.pub                                 # vis offentlig nøgle (Mac)
+echo "ssh-ed25519 AAAA..." >> ~/.ssh/authorized_keys      # giv adgang (server)
+ssh -N -L 5434:127.0.0.1:5432 root@DIN-IP                 # tunnel til databasen (Mac)
+```
 
-| Kommando | Hvad den gør |
-|---|---|
-| 🖥️ `git clone https://github.com/MyDRTV/MyDRTV-backend.git` | Kopierer backend-repoet ned på serveren |
-| 🖥️ `git clone https://github.com/MyDRTV/MyDRTV-frontend-web.git` | Kopierer website-repoet ned ved siden af. `docker-compose.yml` bygger websitet fra `../MyDRTV-frontend-web` |
-| 🖥️ `cd MyDRTV-backend` | Går ind i backend-mappen. Alle `docker compose`-kommandoer køres herfra |
+## 5. Automatisk deploy med GitHub Actions
 
-## 5. Lav serverens `.env`
+```bash
+ssh-keygen -t ed25519 -f ~/.ssh/mydrtv_deploy -N ""       # nøgle til GitHub (Mac)
+echo "ssh-ed25519 AAAA..." >> ~/.ssh/authorized_keys      # giv GitHub adgang (server)
+gh secret set SSH_KEY < ~/.ssh/mydrtv_deploy              # gem privat nøgle på GitHub (Mac)
+rm ~/.ssh/mydrtv_deploy                                   # slet privat nøgle (Mac)
+git push                                                  # starter deploy
+gh run list                                               # se om deploy lykkedes
+gh run view <id> --log                                    # se log fra en kørsel
+gh run rerun <id>                                         # kør en fejlet kørsel igen
+```
 
-| Kommando | Hvad den gør |
-|---|---|
-| 🖥️ `cp .env.example .env` | Kopierer skabelonen til en rigtig `.env`-fil |
-| 🖥️ `nano .env` | Åbner filen i teksteditoren nano. Her skrives databasens brugernavn, password og navn. Gem med `Control+O`, `Enter`, `Control+X` |
-
-`.env` er i `.gitignore` og `.dockerignore`, så passwords aldrig kommer i git eller i et Docker-image.
-
-## 6. Start containerne
-
-| Kommando | Hvad den gør |
-|---|---|
-| 🖥️ `docker compose up -d --build` | Bygger images ud fra `Dockerfile` og starter alle containere (backend, db, web, nginx). `-d` kører dem i baggrunden, og `--build` bygger på ny ud fra den nyeste kode |
-| 🖥️ `docker compose ps` | Viser containerne og deres status (`running`, `healthy`) |
-| 🖥️ `docker compose logs -f backend` | Følger backendens log live. Stop med `Control+C` |
-
-## 7. Flyt data fra Mac'en til serveren
-
-Databasen på serveren startede tom. Tabeller og data blev kopieret fra den lokale database (Postgres.app).
-
-| Kommando | Hvad den gør |
-|---|---|
-| 💻 `pg_dump -h 127.0.0.1 -p 5433 -U postgres -d postgres --no-owner --no-privileges > mydrtv.sql` | Gemmer hele den lokale database (tabeller og data) som SQL i filen `mydrtv.sql` |
-| 💻 `ls -lh mydrtv.sql` | Viser filens størrelse. Den må ikke være 0 bytes |
-| 💻 `scp mydrtv.sql root@DIN-IP:~/` | Kopierer filen fra Mac'en til serveren over SSH |
-| 💻 `rm mydrtv.sql` | Sletter filen på Mac'en. Den indeholder brugerdata og må ikke ende i git |
-| 🖥️ `docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' < ~/mydrtv.sql` | Kører SQL-filen inde i database-containeren, så tabeller og data bliver oprettet |
-| 🖥️ `rm ~/mydrtv.sql` | Sletter filen på serveren igen |
-
-Første forsøg importerede en tom fil, fordi `>` tømmer filen, før `pg_dump` kører, også når kommandoen fejler. Derfor tjekkes størrelsen med `ls -lh`.
-
-## 8. Test
-
-| Kommando / adresse | Hvad den viser |
-|---|---|
-| `http://DIN-IP` | Websitet (Next.js) via nginx |
-| `http://DIN-IP/api/movies` | Backendens film som JSON via nginx |
-| 🖥️ `reboot` | Genstarter serveren for at tjekke, at containerne starter af sig selv (`restart: unless-stopped`) |
-
-## 9. SSH-nøgler til gruppen
-
-| Kommando | Hvad den gør |
-|---|---|
-| 💻 `ssh-keygen -t ed25519 -C "dit-navn"` | Laver et nøglepar: en privat nøgle (bliver på Mac'en) og en offentlig (`.pub`) |
-| 💻 `cat ~/.ssh/id_ed25519.pub` | Viser den offentlige nøgle, så den kan sendes til den, der har adgang til serveren |
-| 🖥️ `echo "ssh-ed25519 AAAA... navn" >> ~/.ssh/authorized_keys` | Giver nøglen adgang til serveren. `>>` tilføjer en linje, mens `>` ville overskrive filen og slette de andre nøgler |
-| 🖥️ `cat ~/.ssh/authorized_keys` | Viser, hvilke nøgler der har adgang |
-
-## 10. SSH-tunnel til den fælles database
-
-| Kommando | Hvad den gør |
-|---|---|
-| 💻 `ssh -N -L 5434:127.0.0.1:5432 root@DIN-IP` | Åbner en krypteret tunnel: port 5434 på Mac'en fører til databasen på serveren. Databasen er ikke åben mod internettet, så det er den eneste vej ind. `-N` betyder, at der ikke åbnes en terminal på serveren |
-
-## 11. Automatisk deploy med GitHub Actions (CI/CD)
-
-| Kommando | Hvad den gør |
-|---|---|
-| 💻 `ssh-keygen -t ed25519 -f ~/.ssh/mydrtv_deploy -N "" -C "github-deploy"` | Laver et nøglepar kun til GitHub. `-N ""` betyder ingen adgangskode, så GitHub kan bruge den uden et menneske |
-| 💻 `cat ~/.ssh/mydrtv_deploy.pub` | Viser den offentlige nøgle |
-| 🖥️ `echo "ssh-ed25519 AAAA... github-deploy" >> ~/.ssh/authorized_keys` | Giver GitHub adgang til serveren |
-| 💻 `cat ~/.ssh/mydrtv_deploy` | Viser den private nøgle, som gemmes som Secret `SSH_KEY` på GitHub (sammen med `SSH_HOST`) |
-| 💻 `gh secret set SSH_KEY < ~/.ssh/mydrtv_deploy` | Gemmer den private nøgle som Secret direkte fra filen. Sikrere end copy-paste, hvor linjeskift eller `-----BEGIN`/`-----END`-linjerne nemt går tabt |
-| 💻 `rm ~/.ssh/mydrtv_deploy` | Sletter den private nøgle på Mac'en. Den skal kun ligge på GitHub |
-| 💻 `git push` | Et push til `main` starter nu `.github/workflows/deploy.yml`, som logger ind på serveren og kører `git pull` og `docker compose up -d --build` |
-| 💻 `git pull --rebase` | Henter de andres commits og lægger mine ovenpå, når GitHub afviser et push, fordi der er kommet nyt |
-| 💻 `gh run list` | Viser de seneste kørsler af workflowen, og om de lykkedes (`success`) eller fejlede (`failure`) |
-| 💻 `gh run view <id> --log` | Viser loggen fra en kørsel, fx for at finde ud af, hvorfor den fejlede |
-| 💻 `gh run rerun <id>` | Kører en fejlet kørsel igen, fx efter en Secret er rettet |
-
-### Fejlen undervejs: `error in libcrypto`
-
-De første kørsler fejlede med `Load key ".../deploy_key": error in libcrypto` og `Permission denied`. GitHub kunne ikke læse nøglen, fordi den private nøgle var kopieret forkert ind i `SSH_KEY`. Den skal med alle linjer og linjeskift, fra `-----BEGIN OPENSSH PRIVATE KEY-----` til og med `-----END OPENSSH PRIVATE KEY-----`. Da nøglen var sat rigtigt, lykkedes deployet: GitHub loggede ind, kørte `git pull` i begge repos og byggede og genstartede alle fire containere.
+Fejl undervejs: `error in libcrypto` betød, at den private nøgle var kopieret forkert ind på GitHub. Løst med `gh secret set`, som tager filen direkte.
