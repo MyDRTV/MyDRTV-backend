@@ -1,306 +1,95 @@
 # MyDRTV – backend
 
-Backend til MyDRTV, bygget med **NestJS** og **TypeORM** oven på **PostgreSQL**.
-Backenden og databasen kører i **Docker** på en Hetzner-server, så alle bruger den samme database.
+Backenden til MyDRTV. Den er bygget med **NestJS** og **TypeORM** og gemmer data i **PostgreSQL**.
+
+Overalt i denne fil står `DIN-IP`. Skift det ud med serverens IP-adresse. Den står ikke i repoet, så spørg i gruppen.
 
 ## Overblik
 
-Projektet kan køre på to måder:
+Der er tre steder, og hvert sted har én opgave:
 
 ```
-LOKALT (udvikling)                         SERVER (Hetzner)
-──────────────────                         ────────────────
-npm run start:dev                          docker compose up -d --build
-        │                                          │
-        ▼                                  ┌───────┴──────── Docker ─────────┐
-NestJS på din Mac :3000                    │ backend (NestJS) :3000 ◀── internettet
-        │                                  │        │                        │
-        ▼  127.0.0.1:5433                  │        ▼  db:5432 (internt)     │
-Postgres.app på din Mac                    │ db (postgres:18) + volume       │
-                                           └─────────────────────────────────┘
+ Jeres Mac'er              GitHub                    Hetzner-serveren
+ ────────────              ──────                    ────────────────
+ skriv kode     ──push──►  gemmer koden    ──deploy──►  Docker kører siden
+ npm run start:dev         (MyDRTV-backend,             backend + db + web + nginx
+ (ingen Docker)             MyDRTV-frontend-web)        offentlig på http://IP
 ```
 
-- **Lokalt** udvikler vi med hot reload mod vores egen Postgres.app på port 5433.
-- **På serveren** kører både backenden og databasen som containere, styret af `docker-compose.yml`. Når nogen poster en film, gemmes den i serverens database, og alle, der kalder `http://DIN-IP:3000`, ser den.
+- **Mac'en** er jeres værksted. I skriver og tester koden her med `npm run start:dev`, som genindlæser automatisk. Docker skal ikke bruges.
+- **GitHub** er det fælles lager for koden. Det, der ligger på `main`, er det, der skal være live.
+- **Hetzner** er udstillingsvinduet. Docker kører fire containere: backend, database, web og nginx. Docker er kun til serveren, så den kan starte det hele ens hver gang.
 
-Begge måder læser den samme slags `.env`. Docker overskriver selv `DB_HOST` og `DB_PORT`, så backenden finder databasen inde i Docker.
+Alle kan se siden på `http://DIN-IP`, også uden login. SSH-nøgler giver kun adgang til at styre serveren og til databasen.
 
-## Mappestruktur
+## Sådan arbejder du
 
-```
-MyDRTV-backend/
-├── src/
-│   ├── main.ts               # Starter Nest-appen på PORT (standard 3000) og slår CORS til
-│   ├── app.module.ts         # Rodmodul: indlæser .env og opretter DB-forbindelsen
-│   ├── app.controller.ts     # GET /  → "Hello World!" (sundhedstjek)
-│   ├── app.service.ts
-│   └── movies/               # Feature-modul for film
-│       ├── movies.module.ts      # Samler controller, service og entity
-│       ├── movies.controller.ts  # Routes: GET /movies
-│       ├── movies.service.ts     # Forretningslogik + databasekald via repository
-│       ├── entity/movie.entity.ts      # Mapper tabellen "movies" til en TypeScript-klasse
-│       └── dto/create-movie.dto.ts     # Formen på data, når en film oprettes
-├── test/                     # End-to-end-tests (Jest + Supertest)
-├── Dockerfile                # Opskrift på backend-imaget
-├── docker-compose.yml        # Starter backend + database sammen
-├── .dockerignore             # Holder node_modules, dist og .env ude af imaget
-├── .env.example              # Skabelon til .env
-├── .env                      # Jeres egne værdier (committes ikke)
-└── package.json
-```
+1. Start SSH-tunnelen til databasen, og kør `npm run start:dev` (se *Kom i gang på din Mac*).
+2. Skriv og test din kode lokalt på http://localhost:3000.
+3. Commit og push til GitHub.
+4. Når det er på `main`, går det automatisk live på serveren (se *Læg ændringer på serveren*).
 
-### Sådan hænger lagene sammen
+Du skal ikke bygge noget eller bruge Docker på din egen Mac.
 
-Hver feature (fx `movies`) er sit eget **modul** med tre lag:
+## Kom i gang på din Mac
 
-1. **Controller** (`movies.controller.ts`) tager imod HTTP-requesten og kalder servicen.
-2. **Service** (`movies.service.ts`) indeholder logikken og taler med databasen gennem et TypeORM-`Repository<Movie>`.
-3. **Entity** (`movie.entity.ts`) beskriver tabellen `movies` og dens kolonner.
+Du skal bruge Node.js og en SSH-nøgle, som er lagt på serveren (se *Adgang til serveren*).
 
-`MoviesModule` registrerer entity'en med `TypeOrmModule.forFeature([Movie])`, så repositoryet kan injectes i servicen. `AppModule` importerer `MoviesModule` og opretter selve databaseforbindelsen med `TypeOrmModule.forRootAsync`, som læser forbindelsesoplysningerne fra miljøvariabler via `ConfigModule`.
-
-```
-HTTP → MoviesController.findAll() → MoviesService.findAll() → Repository<Movie>.find() → PostgreSQL
-```
-
-Nye features (fx brugere eller favoritter) laves efter samme mønster: `nest g resource <navn>`, en entity, og importér modulet i `AppModule`.
-
-## Sådan hænger det hele sammen
-
-```
-Browser / Expo-app  →  http://SERVER-IP  (port 80)
-                          nginx
-                          ├─ /api/...  → backend:3000  (/api fjernes: /api/movies → /movies)
-                          │                └─ db:5432
-                          └─ /...      → web:3000  (Next.js)
-```
-
-| Hvem | Kalder backenden på | CORS? |
-|---|---|---|
-| Next.js i browseren | `/api/movies` | Nej, samme adresse |
-| Next.js på serveren (Server Components) | `http://backend:3000/movies` (env `API_URL`) | Nej, server til server |
-| Expo-appen | `http://SERVER-IP/api/movies` (env `EXPO_PUBLIC_API_URL`) | Nej, ikke en browser |
-
-Lokalt kører Next.js på `:3001` (`npm run dev`), og `next.config.ts` sender `/api` videre til backenden på `:3000`. Websitet bruger `src/lib/api.ts`, som vælger den rigtige adresse selv.
-
-## Docker
-
-### `Dockerfile` – opskriften på backenden
-
-1. Tager udgangspunkt i `node:24-bookworm-slim`.
-2. Kopierer `package.json` og `package-lock.json` og kører `npm ci`. Det lag caches, så længe afhængighederne ikke ændrer sig.
-3. Kopierer resten af projektet og kører `npm run build`, som oversætter TypeScript til `dist/`.
-4. Starter med `node dist/main.js` på port 3000.
-
-`.dockerignore` sørger for, at `node_modules`, `dist` og `.env` ikke kopieres med. Adgangsoplysningerne ligger altså aldrig i imaget. De gives til containeren, når den starter.
-
-### `docker-compose.yml` – backend og database sammen
-
-| Service | Hvad den gør |
-|---|---|
-| `backend` | Bygges fra `Dockerfile`. Får brugernavn, password og databasenavn fra `.env`, men `DB_HOST=db` og `DB_PORT=5432` sættes af compose. Udstilles på port 3000. Starter først, når databasen er klar (`healthcheck`). |
-| `db` | `postgres:18`. Opretter bruger og database første gang ud fra `DB_USERNAME`, `DB_PASSWORD` og `DB_DATABASE` i `.env`. Porten er kun bundet til `127.0.0.1` på serveren, så databasen kan **ikke** nås fra internettet. Backenden når den på Dockers interne netværk, og gruppen når den gennem en SSH-tunnel (se *Adgang for gruppen*). Dataen ligger i volumet `postgres_data` og overlever genstart. |
-
-Begge services har `restart: unless-stopped`, så de starter igen af sig selv, når serveren genstartes. Det er Dockers svar på `pm2 startup`.
-
-> **Hvorfor `db` og ikke `localhost`?** Inde i en container betyder `localhost` containeren selv. Containerne i samme compose-fil finder hinanden på servicenavnet, så backenden når databasen på `db:5432`.
-
-## Lokal udvikling
-
-### 1. Installér afhængigheder
+### 1. Installér pakkerne
 
 ```bash
 npm install
 ```
 
-### 2. Opret `.env`
+### 2. Lav din `.env`
 
 ```bash
 cp .env.example .env
 ```
 
-Udfyld den med jeres Postgres.app-oplysninger:
+Udfyld den. Brugernavn, password og databasenavn er de samme som i serverens `.env`. Spørg i gruppen, og del dem aldrig i git.
 
 ```env
 DB_HOST=127.0.0.1
-DB_PORT=5433
+DB_PORT=5434
 DB_USERNAME=...
 DB_PASSWORD=...
 DB_DATABASE=...
 CORS_ORIGIN=
 ```
 
-`DB_HOST`, `DB_PORT`, `DB_USERNAME` og `DB_DATABASE` er påkrævede. Mangler de, stopper appen ved opstart (`getOrThrow`).
+### 3. Åbn tunnelen til databasen
 
-### 3. Start backenden
+Vi har én fælles database, og den ligger på serveren. I kopierer den ikke til jeres egne Mac'er. I forbinder til den gennem en krypteret SSH-tunnel.
 
-Postgres.app skal køre. Derefter:
+Åbn en terminal, og lad den stå åben, mens du arbejder:
+
+```bash
+ssh -N -L 5434:127.0.0.1:5432 root@DIN-IP
+```
+
+Den skriver ingenting, når den virker. Stop den med `Control + C`.
+
+Tunnelen gør, at port `5434` på din Mac fører til databasen på serveren. Databaseprogrammer som Postico, TablePlus og pgAdmin kan også forbinde til `127.0.0.1`, port `5434`, mens tunnelen er åben.
+
+> **Pas på:** Det er de rigtige, fælles data. Sletter du noget, er det væk for alle. Tag en backup først, hvis du er i tvivl: `pg_dump -h 127.0.0.1 -p 5434 -U <bruger> -d <database> > backup.sql`. Commit den aldrig.
+
+### 4. Start backenden
+
+Åbn en ny terminal:
 
 ```bash
 npm run start:dev
 ```
 
-Tjek at det virker:
+Tjek, at det virker:
 
-- http://localhost:3000 → `Hello World!`
-- http://localhost:3000/movies → liste over film
+- http://localhost:3000 viser `Hello World!`
+- http://localhost:3000/movies viser en liste over film
 
-### Vil du teste Docker-setuppet lokalt?
+## Adgang til serveren
 
-```bash
-APP_PORT=3001 docker compose up -d --build
-```
-
-Så kører Docker-versionen på http://localhost:3001 ved siden af `npm run start:dev` på 3000. Databasen i Docker starter tom, så importér data som i trin 7 nedenfor. Stop igen med `docker compose down`.
-
-## Deployment på Hetzner
-
-Skift `DIN-IP` ud med serverens IP fra Hetzner-panelet.
-
-### Del 1: Gør koden klar på din Mac
-
-**1. Test lokalt**, at `npm run start:dev` virker, og at `/movies` returnerer film.
-
-**2. Commit og push til GitHub.**
-
-### Del 2: Sæt serveren op
-
-**3. Log ind på serveren**
-
-```bash
-ssh root@DIN-IP
-```
-
-**4. Installér Docker og git**
-
-```bash
-curl -fsSL https://get.docker.com | sh
-apt install -y git
-```
-
-Tjek at det virker:
-
-```bash
-docker compose version
-```
-
-Node, PostgreSQL og PM2 skal **ikke** installeres på serveren. Det klarer Docker.
-
-**5. Hent koden**
-
-Backend og web skal ligge ved siden af hinanden, fordi `docker-compose.yml` bygger websitet fra `../MyDRTV-frontend-web`:
-
-```bash
-git clone https://github.com/MyDRTV/MyDRTV-backend.git
-git clone https://github.com/MyDRTV/MyDRTV-frontend-web.git
-cd MyDRTV-backend
-```
-
-Er repoet privat, skal du logge ind med dit GitHub-brugernavn og et *personal access token* som password.
-
-**6. Lav serverens `.env`**
-
-```bash
-cp .env.example .env
-nano .env
-```
-
-Udfyld den, og gem med `Ctrl+O`, `Enter`, `Ctrl+X`:
-
-```env
-DB_HOST=db
-DB_PORT=5432
-DB_USERNAME=mydrtv
-DB_PASSWORD=ET-LANGT-TILFÆLDIGT-PASSWORD
-DB_DATABASE=mydrtv
-CORS_ORIGIN=
-```
-
-- Databasen oprettes automatisk med disse oplysninger første gang. Der skal ikke køres `CREATE USER` eller `CREATE DATABASE`.
-- Brug et nyt, stærkt password. Det er ikke det samme som jeres lokale.
-- Når frontenden har en fast adresse, så skriv den i `CORS_ORIGIN`, fx `CORS_ORIGIN=https://mydrtv.dk`.
-
-**7. Start backend og database**
-
-```bash
-docker compose up -d --build
-docker compose ps
-```
-
-Begge services skal stå som `running`, og `db` som `healthy`.
-
-**8. Flyt data fra Postgres.app til serveren**
-
-`synchronize` er `false`, så TypeORM opretter ikke tabeller selv. Tabeller og data skal ind fra jeres lokale database.
-
-På **din Mac** (ikke på serveren), i projektmappen:
-
-```bash
-/Applications/Postgres.app/Contents/Versions/18/bin/pg_dump \
-  -h 127.0.0.1 -p 5433 -U DIT-LOKALE-BRUGERNAVN -d DIN-LOKALE-DATABASE \
-  --no-owner --no-privileges > mydrtv.sql
-
-scp mydrtv.sql root@DIN-IP:~/
-rm mydrtv.sql
-```
-
-- `--no-owner --no-privileges` gør dumpet uafhængigt af, hvilken bruger der ejede tabellerne lokalt.
-- Dumpet indeholder også tabellen `users`, så det må **ikke** committes til GitHub. Slet det, når det er kopieret.
-
-- Find det lokale brugernavn og databasenavn med `psql -h 127.0.0.1 -p 5433 -U postgres -c '\l'`. Tabellerne kan godt ligge i standarddatabasen `postgres`.
-- Tjek med `ls -lh mydrtv.sql`, at filen ikke er 0 bytes, før du sender den. En fejlende `pg_dump` tømmer filen, fordi `>` tømmer den, før kommandoen kører.
-
-På **serveren**:
-
-```bash
-ls -lh ~/mydrtv.sql      # skal være større end 0
-cd ~/MyDRTV-backend
-docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < ~/mydrtv.sql
-rm ~/mydrtv.sql
-```
-
-Kommandoen bruger selv brugernavnet og databasenavnet fra serverens `.env`. En vellykket import skriver linjer som `CREATE TABLE` og `COPY 20`. Skriver den ingenting, var filen tom.
-
-**9. Test i browseren:** `http://DIN-IP` (websitet) og `http://DIN-IP/api/movies` (backenden)
-
-**10. Genstart serveren** og tjek, at alt kommer op af sig selv:
-
-```bash
-reboot
-```
-
-Vent et minut, og åbn `http://DIN-IP/api/movies` igen.
-
-### Firewall
-
-Opret en firewall i Hetzner-panelet (*Firewalls*), der kun tillader indgående **22** (SSH) og **80** (nginx). Backenden (3000) og databasen (5432) er kun bundet til `127.0.0.1` og kan ikke nås udefra.
-
-Databasen har ingen port udadtil, så den er ikke tilgængelig fra internettet.
-
-> Brug Hetzners firewall frem for `ufw`. Docker åbner selv porte i `iptables` og går uden om `ufw`.
-
-### Når du har ændret noget i koden
-
-Push fra din Mac, og kør så på serveren:
-
-```bash
-ssh root@DIN-IP
-cd ~/MyDRTV-frontend-web && git pull     # hvis websitet er ændret
-cd ~/MyDRTV-backend && git pull
-docker compose up -d --build
-```
-
-`--build` bygger imaget igen, også med nye pakker. Der skal ikke køres `npm install` på serveren. Dataen i databasen bevares.
-
-## Adgang for gruppen
-
-Serverens IP-adresse og adgangsoplysningerne til databasen står ikke i repoet. Spørg i gruppen, og del dem privat, aldrig i git.
-
-> **Hvem er jeg på?** Prompten `root@ubuntu-...` betyder, at du er på serveren. Står dit eget navn der, er du på din Mac. `pg_dump`, `scp` og tunnelen køres på Mac'en, og `docker compose` køres på serveren.
-
-### 1. Log ind på serveren med din egen SSH-nøgle
-
-Hver i gruppen har sin egen nøgle, så I ikke behøver dele root-koden.
+Hver i gruppen har sin egen SSH-nøgle, så I ikke behøver dele root-koden.
 
 På **din Mac**, én gang:
 
@@ -309,9 +98,9 @@ ssh-keygen -t ed25519 -C "dit-navn"   # tryk Enter til alle spørgsmål
 cat ~/.ssh/id_ed25519.pub            # kopiér hele linjen
 ```
 
-Send linjen fra `.pub`-filen til den, der har adgang til serveren. Det er den **offentlige** nøgle, så den er ufarlig at dele. Filen uden `.pub` må aldrig deles.
+Send linjen til den, der har adgang til serveren. Det er den **offentlige** nøgle, så den er ufarlig at dele. Filen uden `.pub` må aldrig deles.
 
-Den, der har adgang, tilføjer nøglen på **serveren**:
+Den, der har adgang, tilføjer linjen på **serveren**:
 
 ```bash
 echo "ssh-ed25519 AAAA...resten-af-linjen dit-navn" >> ~/.ssh/authorized_keys
@@ -323,89 +112,240 @@ Nu kan du logge ind uden password:
 ssh root@DIN-IP
 ```
 
-### 2. Brug serverens database fra din Mac (SSH-tunnel)
+> **Hvor er jeg?** Står der `root@ubuntu-...` i prompten, er du på serveren. Står dit eget navn der, er du på din Mac.
 
-Serverens database er den fælles database. I kopierer den ikke til jeres egne Mac'er. I forbinder til den gennem en krypteret tunnel.
+## Læg ændringer på serveren
 
-**Terminal 1**, som skal stå åben, mens du arbejder:
+Når nogen pusher til `main` i backend-repoet, lægger GitHub selv den nye kode på serveren. Det tager 1–2 minutter. Under fanen **Actions** på GitHub kan du følge med, og et grønt flueben betyder, at det er live.
+
+Det styres af én fil, `.github/workflows/deploy.yml`. Den logger ind på serveren, kører `git pull` i begge repos og derefter `docker compose up -d --build`. Dataen i databasen bevares.
+
+> Ændringer i websitet (`MyDRTV-frontend-web`) kommer med ved næste push til backenden.
+
+### Opsætning (engangsjob)
+
+**1. Lav en nøgle til GitHub på din Mac:**
 
 ```bash
-ssh -N -L 5434:127.0.0.1:5432 root@DIN-IP
+ssh-keygen -t ed25519 -f ~/.ssh/mydrtv_deploy -N "" -C "github-deploy"
+cat ~/.ssh/mydrtv_deploy.pub
 ```
 
-Den skriver ingenting, når den virker. Stop den med `Control + C`.
+**2. Læg den offentlige nøgle på serveren** (log ind med `ssh root@DIN-IP`):
 
-Din lokale **`.env`**:
+```bash
+echo "LINJEN-FRA-mydrtv_deploy.pub" >> ~/.ssh/authorized_keys
+```
+
+**3. Gem to Secrets på GitHub.** Repoet → **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Navn | Værdi |
+|---|---|
+| `SSH_HOST` | Serverens IP |
+| `SSH_KEY` | Hele outputtet af `cat ~/.ssh/mydrtv_deploy` (den private nøgle, uden `.pub`) |
+
+Slet derefter den private nøgle fra din Mac med `rm ~/.ssh/mydrtv_deploy`.
+
+**4. Push til `main`**, og tjek fanen Actions.
+
+## Sådan hænger serveren sammen
+
+Udefra er der kun én indgang: nginx på port 80. Den sender trafikken videre til den rigtige container.
+
+```
+Browser / Expo-app  →  http://DIN-IP  (port 80)
+                          nginx
+                          ├─ /api/...  → backend:3000  (/api fjernes: /api/movies → /movies)
+                          │                └─ db:5432
+                          └─ /...      → web:3000  (Next.js)
+```
+
+Backenden og databasen kan ikke nås direkte fra internettet. De er kun bundet til `127.0.0.1` på serveren.
+
+| Hvem | Kalder backenden på |
+|---|---|
+| Next.js i browseren | `/api/movies` |
+| Next.js på serveren (Server Components) | `http://backend:3000/movies` (env `API_URL`) |
+| Expo-appen | `http://DIN-IP/api/movies` (env `EXPO_PUBLIC_API_URL`) |
+
+Ingen af dem har brug for CORS: browseren kalder samme adresse, som siden kommer fra, og server og app er ikke browsere. CORS bruges kun lokalt, hvor Next.js kører på `:3001` og backenden på `:3000`.
+
+## Kodens opbygning
+
+```
+MyDRTV-backend/
+├── src/
+│   ├── main.ts               # Starter appen på PORT (standard 3000) og slår CORS til
+│   ├── app.module.ts         # Rodmodulet: læser .env og forbinder til databasen
+│   ├── app.controller.ts     # GET /  → "Hello World!"
+│   ├── app.service.ts
+│   └── movies/               # Alt om film
+│       ├── movies.module.ts
+│       ├── movies.controller.ts  # Routes: GET /movies
+│       ├── movies.service.ts     # Logik og databasekald
+│       ├── entity/movie.entity.ts    # Tabellen "movies" som en TypeScript-klasse
+│       └── dto/create-movie.dto.ts   # Formen på data, når en film oprettes
+├── test/                     # End-to-end-tests
+├── nginx/default.conf        # nginx' regler: /api til backenden, resten til web
+├── .github/workflows/deploy.yml  # Automatisk deploy ved push til main
+├── Dockerfile                # Opskriften på backendens image
+├── docker-compose.yml        # Starter alle fire containere på serveren
+├── .env.example              # Skabelon til .env
+└── package.json
+```
+
+De små konfigurationsfiler i roden (`tsconfig*.json`, `nest-cli.json`, `jest.config.ts`, `.oxlintrc.json`, `.prettierrc`) fulgte med, da projektet blev oprettet med Nest. De styrer TypeScript, tests, lint og formatering, og I skal sjældent røre dem.
+
+### Lagene i et modul
+
+Hver feature, fx `movies`, er sit eget modul med tre lag:
+
+1. **Controller** tager imod HTTP-requesten og kalder servicen.
+2. **Service** indeholder logikken og taler med databasen gennem et TypeORM-`Repository<Movie>`.
+3. **Entity** beskriver tabellen og dens kolonner.
+
+```
+HTTP → MoviesController → MoviesService → Repository<Movie> → PostgreSQL
+```
+
+Nye features laves på samme måde: `nest g resource <navn>`, en entity, og modulet importeres i `AppModule`.
+
+## Docker på serveren
+
+Docker gør, at serveren ikke skal have Node eller PostgreSQL installeret. Alt kører i containere, som starter ens hver gang.
+
+- **`Dockerfile`** er opskriften på backenden: installér pakker, byg TypeScript til `dist/`, og start med `node dist/main.js`.
+- **`docker-compose.yml`** starter de fire containere og forbinder dem:
+
+| Container | Hvad den gør |
+|---|---|
+| `backend` | NestJS, bygget fra `Dockerfile`. Starter først, når databasen er klar. |
+| `db` | PostgreSQL 18. Dataen ligger i volumet `postgres_data` og overlever genstart. |
+| `web` | Next.js, bygget fra `../MyDRTV-frontend-web`. |
+| `nginx` | Den eneste indgang udefra, på port 80. |
+
+Alle har `restart: unless-stopped`, så de starter igen af sig selv, når serveren genstartes.
+
+> **Hvorfor `db` og ikke `localhost`?** Inde i en container betyder `localhost` containeren selv. Containerne finder hinanden på deres navn, så backenden når databasen på `db:5432`. Derfor overskriver compose `DB_HOST` og `DB_PORT` fra `.env`.
+
+`.dockerignore` holder `node_modules`, `dist` og `.env` ude af imaget, så adgangsoplysninger aldrig ligger i det.
+
+## Opsætning af serveren (engangsjob)
+
+Det her er allerede gjort. Det står her, hvis serveren en dag skal sættes op igen.
+
+**1. Log ind, og installér Docker og git**
+
+```bash
+ssh root@DIN-IP
+curl -fsSL https://get.docker.com | sh
+apt install -y git
+docker compose version
+```
+
+**2. Hent koden.** Backend og web skal ligge ved siden af hinanden:
+
+```bash
+git clone https://github.com/MyDRTV/MyDRTV-backend.git
+git clone https://github.com/MyDRTV/MyDRTV-frontend-web.git
+cd MyDRTV-backend
+```
+
+**3. Lav serverens `.env`**
+
+```bash
+cp .env.example .env
+nano .env
+```
 
 ```env
-DB_HOST=127.0.0.1
-DB_PORT=5434
-DB_USERNAME=<samme som i serverens .env>
-DB_PASSWORD=<samme som i serverens .env>
-DB_DATABASE=<samme som i serverens .env>
+DB_HOST=db
+DB_PORT=5432
+DB_USERNAME=...
+DB_PASSWORD=ET-LANGT-TILFÆLDIGT-PASSWORD
+DB_DATABASE=...
 CORS_ORIGIN=
 ```
 
-**Terminal 2:**
+Gem med `Control+O`, `Enter`, `Control+X`. Databasen oprettes automatisk med disse oplysninger første gang. Skift ikke passwordet bagefter (se *Hvis noget går galt*).
+
+**4. Start det hele**
 
 ```bash
-npm run start:dev
+docker compose up -d --build
+docker compose ps
 ```
 
-Databaseprogrammer som Postico, TablePlus og pgAdmin forbinder til `127.0.0.1`, port `5434`, mens tunnelen er åben.
+Alle fire skal stå som `running`, og `db` som `healthy`.
 
-> **Pas på:** Det er de rigtige, fælles data. Sletter du noget under udvikling, er det væk for alle. Tag en backup først: `pg_dump -h 127.0.0.1 -p 5434 -U <bruger> -d <database> > backup.sql` (og commit den aldrig).
+**5. Læg data i databasen.** TypeORM opretter ikke tabeller selv (`synchronize` er `false`), så tabeller og data skal ind fra et dump.
 
-### 3. Læg din kode på serveren
+På **din Mac**:
 
-Se *Når du har ændret noget i koden* ovenfor: push, log ind, og kør `git pull` og `docker compose up -d --build`.
+```bash
+/Applications/Postgres.app/Contents/Versions/18/bin/pg_dump \
+  -h 127.0.0.1 -p 5433 -U postgres -d postgres \
+  --no-owner --no-privileges > mydrtv.sql
+ls -lh mydrtv.sql            # må ikke være 0 bytes
+scp mydrtv.sql root@DIN-IP:~/
+rm mydrtv.sql
+```
+
+På **serveren**:
+
+```bash
+ls -lh ~/mydrtv.sql
+cd ~/MyDRTV-backend
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' < ~/mydrtv.sql
+rm ~/mydrtv.sql
+```
+
+En vellykket import skriver linjer som `CREATE TABLE` og `COPY 20`. Dumpet indeholder tabellen `users`, så det må aldrig committes.
+
+**6. Test** `http://DIN-IP` og `http://DIN-IP/api/movies`. Kør `reboot`, vent et minut, og tjek, at siden kommer op igen af sig selv.
+
+### Firewall
+
+Opret en firewall i Hetzner-panelet under *Firewalls*, der kun tillader indgående **22** (SSH) og **80** (websitet). Brug Hetzners firewall frem for `ufw`, fordi Docker går uden om `ufw`.
 
 ## Nyttige kommandoer
 
-### Docker
+På din Mac:
 
 ```bash
-docker compose up -d --build     # byg og start backend + database
-docker compose ps                # status
-docker compose logs -f backend   # følg backendens log
-docker compose logs -f db        # følg databasens log
-docker compose restart backend   # genstart kun backenden
-docker compose down              # stop og fjern containerne (data bevares)
-docker compose down -v           # stop OG slet volumet – sletter al data!
-docker compose exec db psql -U mydrtv -d mydrtv   # åbn psql i databasen
-```
-
-### Backend
-
-```bash
-npm run start:dev    # udvikling med hot reload
-npm run build        # byg til dist/
-npm run start:prod   # kør den byggede version
-npm run lint         # oxlint
-npm run format       # prettier
+npm run start:dev    # udvikling, genindlæser automatisk
+npm run lint         # find fejl i koden (oxlint)
+npm run format       # ret formateringen (prettier)
 npm run test         # unit-tests
 npm run test:e2e     # end-to-end-tests
 ```
 
+På serveren, i `~/MyDRTV-backend`:
+
+```bash
+docker compose ps                # status
+docker compose logs -f backend   # følg backendens log
+docker compose restart backend   # genstart kun backenden
+docker compose down              # stop containerne (data bevares)
+docker compose down -v           # stop OG slet al data – pas på!
+```
+
 ## Hvis noget går galt
 
-Se altid fejlene med `docker compose logs backend`.
+På serveren ser du fejlene med `docker compose logs backend`.
 
-| Fejl | Betyder |
+| Fejl | Det betyder |
 |---|---|
-| `Mangler DB_PASSWORD i .env` (eller en anden variabel) | `.env` mangler eller er ikke udfyldt i mappen, hvor du kører `docker compose` |
-| `relation "movies" does not exist` | Tabellerne er ikke importeret. Se trin 8 |
-| `role "..." does not exist` ved import | Forkert `-U`. Brug kommandoen med `$POSTGRES_USER` fra trin 8 |
-| Importen skriver ingenting, og `\dt` finder ingen tabeller | `mydrtv.sql` var 0 bytes. Lav dumpet igen, og tjek med `ls -lh` |
-| Tunnelen: `bind: Address already in use` | Port 5434 bruges allerede, fx af en tunnel, der stadig er åben. Luk den, eller brug en anden lokal port |
-| `password authentication failed for user ...` | Passwordet i `.env` er ændret, efter databasen blev oprettet. Databasen husker det første password. Ret `.env` tilbage, eller slet volumet med `docker compose down -v` (sletter data) |
-| `ECONNREFUSED ...:5433` lokalt | Postgres.app kører ikke |
-| `port is already allocated` | Noget andet bruger port 3000. Stop det, eller start med `APP_PORT=3001 docker compose up -d` |
-| Browseren siger *CORS error* | Frontendens adresse står ikke i `CORS_ORIGIN` |
+| `ECONNREFUSED 127.0.0.1:5434` lokalt | Tunnelen er ikke åben. Start den (se trin 3 under *Kom i gang*) |
+| Tunnelen: `bind: Address already in use` | En anden tunnel er allerede åben på 5434. Luk den først |
+| `Mangler DB_PASSWORD i .env` | `.env` mangler eller er ikke udfyldt i mappen, hvor du kører `docker compose` |
+| `relation "movies" does not exist` | Tabellerne er ikke importeret. Se trin 5 under *Opsætning af serveren* |
+| `password authentication failed` | Passwordet i `.env` er ændret, efter databasen blev oprettet. Sæt det gamle tilbage |
+| `port is already allocated` | Noget andet bruger porten. Stop det først |
 
 ## Endpoints
 
 | Metode | Route | Beskrivelse |
 |---|---|---|
 | `GET` | `/` | Sundhedstjek, returnerer `Hello World!` |
-| `GET` | `/movies` | Alle film, sorteret alfabetisk efter titel |
+| `GET` | `/movies` | Alle film, sorteret efter titel |

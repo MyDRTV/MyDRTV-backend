@@ -1,0 +1,25 @@
+# Ved hvert push til main logger GitHub ind på serveren og lægger den nye kode ud.
+name: Deploy til Hetzner
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan "$SSH_HOST" >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key "root@$SSH_HOST" '
+            cd ~/MyDRTV-frontend-web && git pull &&
+            cd ~/MyDRTV-backend && git pull &&
+            docker compose up -d --build
+          '
