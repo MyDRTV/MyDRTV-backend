@@ -1,33 +1,28 @@
-import {
-  IsNotEmpty,
-  IsString,
-  IsInt,
-  Min,
-  Max,
-  IsBoolean,
-} from 'class-validator';
+import {IsNotEmpty, IsString, IsDateString, Max, Min} from 'class-validator';
 
 export class CreateMovieDto {
-  // @ er decorater
   @IsString()
-  @IsNotEmpty({ message: 'Animal must have a name' })
-  name: string;
+  @IsNotEmpty({ message: 'Film skal have et id' })
+  @Min(32)
+  @Max(32)
+  id: string
 
   @IsString()
-  @IsNotEmpty({ message: 'Animal must have a description' })
+  @Max(255, { message: 'Titel må max være 255 karakterer' })
+  @IsNotEmpty({ message: 'Film skal have en titel' })
+  title: string;
+
+  @IsString()
   description: string;
 
   @IsString()
-  @IsNotEmpty({ message: 'Animal must have a type' })
-  type: string;
+  @IsNotEmpty({ message: 'Film skal have en genre' })
+  genre: string;
 
-  @IsInt()
-  @Min(0)
-  age: number;
+  @IsDateString()
+  @IsNotEmpty({ message: 'Film skal have et udgivelsesår' })
+  release_year: number;
 
-  @IsBoolean()
-  star: boolean;
-
-  @IsBoolean()
-  winner: boolean;
+  @IsString()
+  poster_url: string;
 }
