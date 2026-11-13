@@ -7,12 +7,14 @@ import { AppService } from './app.service';
 import { MoviesModule } from './movies/movies.module';
 
 @Module({
+  // DataSource
   imports: [
     MoviesModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),
 
+    // DataSource
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
