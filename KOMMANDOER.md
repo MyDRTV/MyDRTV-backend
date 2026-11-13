@@ -107,6 +107,14 @@ Første forsøg importerede en tom fil, fordi `>` tømmer filen, før `pg_dump` 
 | 💻 `cat ~/.ssh/mydrtv_deploy.pub` | Viser den offentlige nøgle |
 | 🖥️ `echo "ssh-ed25519 AAAA... github-deploy" >> ~/.ssh/authorized_keys` | Giver GitHub adgang til serveren |
 | 💻 `cat ~/.ssh/mydrtv_deploy` | Viser den private nøgle, som gemmes som Secret `SSH_KEY` på GitHub (sammen med `SSH_HOST`) |
+| 💻 `gh secret set SSH_KEY < ~/.ssh/mydrtv_deploy` | Gemmer den private nøgle som Secret direkte fra filen. Sikrere end copy-paste, hvor linjeskift eller `-----BEGIN`/`-----END`-linjerne nemt går tabt |
 | 💻 `rm ~/.ssh/mydrtv_deploy` | Sletter den private nøgle på Mac'en. Den skal kun ligge på GitHub |
 | 💻 `git push` | Et push til `main` starter nu `.github/workflows/deploy.yml`, som logger ind på serveren og kører `git pull` og `docker compose up -d --build` |
 | 💻 `git pull --rebase` | Henter de andres commits og lægger mine ovenpå, når GitHub afviser et push, fordi der er kommet nyt |
+| 💻 `gh run list` | Viser de seneste kørsler af workflowen, og om de lykkedes (`success`) eller fejlede (`failure`) |
+| 💻 `gh run view <id> --log` | Viser loggen fra en kørsel, fx for at finde ud af, hvorfor den fejlede |
+| 💻 `gh run rerun <id>` | Kører en fejlet kørsel igen, fx efter en Secret er rettet |
+
+### Fejlen undervejs: `error in libcrypto`
+
+De første kørsler fejlede med `Load key ".../deploy_key": error in libcrypto` og `Permission denied`. GitHub kunne ikke læse nøglen, fordi den private nøgle var kopieret forkert ind i `SSH_KEY`. Den skal med alle linjer og linjeskift, fra `-----BEGIN OPENSSH PRIVATE KEY-----` til og med `-----END OPENSSH PRIVATE KEY-----`. Da nøglen var sat rigtigt, lykkedes deployet: GitHub loggede ind, kørte `git pull` i begge repos og byggede og genstartede alle fire containere.
