@@ -1,12 +1,27 @@
-# Ved hvert push til main logger GitHub ind på serveren og lægger den nye kode ud.
-name: Deploy til Hetzner
+# Ved hvert push til main tjekker GitHub koden (CI). Er alt grønt, logger den ind
+# på serveren og lægger den nye kode ud (CD).
+name: Test og deploy til Hetzner
 
 on:
   push:
     branches: [main]
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Deploy

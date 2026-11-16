@@ -118,7 +118,18 @@ ssh root@DIN-IP
 
 Når nogen pusher til `main` i backend-repoet, lægger GitHub selv den nye kode på serveren. Det tager 1–2 minutter. Under fanen **Actions** på GitHub kan du følge med, og et grønt flueben betyder, at det er live.
 
-Det styres af én fil, `.github/workflows/deploy.yml`. Den logger ind på serveren, kører `git pull` i begge repos og derefter `docker compose up -d --build`. Dataen i databasen bevares.
+Det styres af én fil, `.github/workflows/deploy.yml`. Først tjekker den koden (CI). Er alt grønt, logger den ind på serveren, kører `git pull` i begge repos og derefter `docker compose up -d --build` (CD). Dataen i databasen bevares.
+
+Tjekkene kører i denne rækkefølge. Fejler ét af dem, får du et rødt kryds, og intet bliver lagt ud:
+
+| Trin | Hvad det gør | Hvad det fanger |
+|---|---|---|
+| `npm ci` | Installerer præcis de pakker, der står i `package-lock.json` | Pakker, der mangler i `package.json` |
+| `npm run lint` | Læser koden uden at køre den | Sjusk som ubrugte imports og et glemt `await` |
+| `npm test` | Kører alle tests i filer, der ender på `.spec.ts` | Kode, der kører, men gør noget forkert |
+| `npm run build` | Oversætter TypeScript til JavaScript | Typefejl og imports af filer, der ikke findes |
+
+Kør de tre sidste på din egen Mac, før du pusher, så slipper du for at vente på GitHub.
 
 > Ændringer i websitet (`MyDRTV-frontend-web`) kommer med ved næste push til backenden.
 
