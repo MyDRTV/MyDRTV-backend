@@ -4,14 +4,16 @@ services:
     build: .
     restart: unless-stopped
 
-    # Brugernavn, password og databasenavn hentes fra .env
-    env_file: .env
-
     # Inde i Docker hedder databasen "db" og lytter på 5432.
-    # Det overskriver DB_HOST/DB_PORT fra .env, som lokalt peger på SSH-tunnelen.
+    # Backenden får kun app-kontoen (DB_USERNAME/DB_PASSWORD) fra .env,
+    # ikke superbrugeren.
     environment:
       DB_HOST: db
       DB_PORT: 5432
+      DB_USERNAME: ${DB_USERNAME:?Mangler DB_USERNAME i .env}
+      DB_PASSWORD: ${DB_PASSWORD:?Mangler DB_PASSWORD i .env}
+      DB_DATABASE: ${DB_DATABASE:?Mangler DB_DATABASE i .env}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
       PORT: 3000
 
     # Kun på 127.0.0.1: udefra nås backenden gennem nginx på /api.
@@ -29,10 +31,11 @@ services:
     image: postgres:18
     restart: unless-stopped
 
-    # Opretter bruger og database første gang, ud fra .env
+    # Opretter superbrugeren og databasen første gang, ud fra .env.
+    # Superbrugeren er admin-kontoen. Backenden bruger app-kontoen.
     environment:
-      POSTGRES_USER: ${DB_USERNAME:?Mangler DB_USERNAME i .env}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?Mangler DB_PASSWORD i .env}
+      POSTGRES_USER: ${POSTGRES_USER:?Mangler POSTGRES_USER i .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Mangler POSTGRES_PASSWORD i .env}
       POSTGRES_DB: ${DB_DATABASE:?Mangler DB_DATABASE i .env}
 
     # Kun bundet til 127.0.0.1 på serveren: databasen kan ikke nås fra internettet,

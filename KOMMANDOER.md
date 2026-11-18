@@ -66,3 +66,25 @@ gh run rerun <id>                                         # kør en fejlet kørs
 ```
 
 Fejl undervejs: `error in libcrypto` betød, at den private nøgle var kopieret forkert ind på GitHub. Løst med `gh secret set`, som tager filen direkte.
+
+## 6. App-konto i databasen
+
+Backenden skal ikke logge ind som superbruger. Kørt i pgAdmin som superbrugeren:
+
+```sql
+CREATE ROLE mydrtv_app LOGIN PASSWORD '...';              -- opret app-kontoen
+
+GRANT SELECT, INSERT, UPDATE, DELETE                      -- må kun læse og skrive rækker
+  ON ALL TABLES IN SCHEMA public TO mydrtv_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public                 -- samme adgang til nye tabeller
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mydrtv_app;
+```
+
+Test, kørt i pgAdmin fra en forbindelse, der er logget ind som `mydrtv_app`:
+
+```sql
+SELECT current_user;             -- skal vise mydrtv_app
+SELECT * FROM genres;            -- skal vise de samme rækker som hos superbrugeren
+CREATE TABLE test (id int);      -- skal fejle: permission denied
+```

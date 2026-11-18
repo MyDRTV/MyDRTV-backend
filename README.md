@@ -47,12 +47,12 @@ npm install
 cp .env.example .env
 ```
 
-Udfyld den. Brugernavn, password og databasenavn er de samme som i serverens `.env`. Spørg i gruppen, og del dem aldrig i git.
+Udfyld den. Brugernavn og password er app-kontoens (se *To konti i databasen*), og databasenavnet er det samme som på serveren. Spørg i gruppen, og del dem aldrig i git.
 
 ```env
 DB_HOST=127.0.0.1
 DB_PORT=5434
-DB_USERNAME=...
+DB_USERNAME=mydrtv_app
 DB_PASSWORD=...
 DB_DATABASE=...
 CORS_ORIGIN=
@@ -93,7 +93,7 @@ pgAdmin er et program til at se og rette i databasen. Tunnelen fra trin 3 skal v
 
 1. Højreklik på **Servers → Register → Server**.
 2. Fanen *General*: giv den et navn, fx `MyDRTV`.
-3. Fanen *Connection*: host `127.0.0.1`, port `5434`, og database, brugernavn og password fra din `.env`. Lad fanen *SSH Tunnel* være tom.
+3. Fanen *Connection*: host `127.0.0.1`, port `5434`, databasenavnet fra din `.env`, og brugernavn og password for den konto, du vil bruge (se *To konti i databasen*). Lad fanen *SSH Tunnel* være tom.
 4. Højreklik på databasen → **Query Tool**, skriv din SQL, og tryk `F5`.
 
 ```sql
@@ -115,6 +115,36 @@ TypeORM ændrer aldrig databasen selv (`synchronize` er `false`). En ny kolonne 
 2. Tilføj kolonnen i entity-filen, og push.
 
 Mangler trin 1, fejler backenden med `column ... does not exist`. Ændringen i databasen rammer alle og det kørende site med det samme, så sig det i gruppen først.
+
+### To konti i databasen
+
+Databasen har to konti, så backenden ikke kan mere, end den skal:
+
+| Konto | Bruges af | Må |
+|---|---|---|
+| `mydrtv_app` | Backenden (`DB_USERNAME` i `.env`) | Læse og skrive rækker |
+| Superbrugeren | Jer i pgAdmin (`POSTGRES_USER` i serverens `.env`) | Alt, også oprette og ændre tabeller |
+
+App-kontoen er oprettet med denne SQL, kørt som superbrugeren:
+
+```sql
+CREATE ROLE mydrtv_app LOGIN PASSWORD '...';
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO mydrtv_app;
+
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO mydrtv_app;
+```
+
+Den sidste sætning giver app-kontoen adgang til tabeller, som superbrugeren opretter senere. Opret derfor altid nye tabeller som superbrugeren.
+
+Lav to forbindelser i pgAdmin, én for hver konto. Et Query Tool hører til den forbindelse, du åbnede det fra. Test app-kontoen fra dens egen forbindelse:
+
+```sql
+SELECT current_user;             -- skal vise mydrtv_app
+SELECT * FROM genres;            -- skal vise de samme rækker som hos superbrugeren
+CREATE TABLE test (id int);      -- skal fejle: permission denied
+```
 
 ## Adgang til serveren
 
@@ -274,7 +304,7 @@ Docker gør, at serveren ikke skal have Node eller PostgreSQL installeret. Alt k
 
 Alle har `restart: unless-stopped`, så de starter igen af sig selv, når serveren genstartes.
 
-> **Hvorfor `db` og ikke `localhost`?** Inde i en container betyder `localhost` containeren selv. Containerne finder hinanden på deres navn, så backenden når databasen på `db:5432`. Derfor overskriver compose `DB_HOST` og `DB_PORT` fra `.env`.
+> **Hvorfor `db` og ikke `localhost`?** Inde i en container betyder `localhost` containeren selv. Containerne finder hinanden på deres navn, så backenden når databasen på `db:5432`. Derfor sætter compose selv `DB_HOST` og `DB_PORT`.
 
 `.dockerignore` holder `node_modules`, `dist` og `.env` ude af imaget, så adgangsoplysninger aldrig ligger i det.
 
@@ -307,15 +337,17 @@ nano .env
 ```
 
 ```env
-DB_HOST=db
-DB_PORT=5432
-DB_USERNAME=...
-DB_PASSWORD=ET-LANGT-TILFÆLDIGT-PASSWORD
+POSTGRES_USER=...
+POSTGRES_PASSWORD=ET-LANGT-TILFÆLDIGT-PASSWORD
+DB_USERNAME=mydrtv_app
+DB_PASSWORD=ET-ANDET-LANGT-PASSWORD
 DB_DATABASE=...
 CORS_ORIGIN=
 ```
 
-Gem med `Control+O`, `Enter`, `Control+X`. Databasen oprettes automatisk med disse oplysninger første gang. Skift ikke passwordet bagefter (se *Hvis noget går galt*).
+`POSTGRES_USER` og `POSTGRES_PASSWORD` er superbrugeren, som databasen oprettes med første gang. `DB_USERNAME` og `DB_PASSWORD` er app-kontoen, som backenden logger ind med. `DB_HOST` og `DB_PORT` skal ikke stå her, for compose sætter dem selv.
+
+Gem med `Control+O`, `Enter`, `Control+X`. Skift ikke `POSTGRES_PASSWORD` bagefter (se *Hvis noget går galt*).
 
 **4. Start det hele**
 
@@ -324,7 +356,7 @@ docker compose up -d --build
 docker compose ps
 ```
 
-Alle fire skal stå som `running`, og `db` som `healthy`.
+Alle fire skal stå som `running`, og `db` som `healthy`. Backenden kan først logge ind, når app-kontoen er oprettet i trin 6.
 
 **5. Læg data i databasen.** TypeORM opretter ikke tabeller selv (`synchronize` er `false`), så tabeller og data skal ind fra et dump af den fælles database.
 
@@ -355,7 +387,9 @@ rm ~/mydrtv.sql
 
 En vellykket import skriver linjer som `CREATE TABLE` og `COPY 20`. Dumpet indeholder tabellen `users`, så det må aldrig committes.
 
-**6. Test** `http://DIN-IP` og `http://DIN-IP/api/movies`. Kør `reboot`, vent et minut, og tjek, at siden kommer op igen af sig selv.
+**6. Opret app-kontoen.** Åbn tunnelen, log ind i pgAdmin som superbrugeren, og kør SQL'en fra *To konti i databasen* med samme password som `DB_PASSWORD` i serverens `.env`.
+
+**7. Test** `http://DIN-IP` og `http://DIN-IP/api/movies`. Kør `reboot`, vent et minut, og tjek, at siden kommer op igen af sig selv.
 
 ### Firewall
 
@@ -391,9 +425,10 @@ På serveren ser du fejlene med `docker compose logs backend`.
 |---|---|
 | `ECONNREFUSED 127.0.0.1:5434` lokalt | Tunnelen er ikke åben. Start den (se trin 3 under *Kom i gang*) |
 | Tunnelen: `bind: Address already in use` | En anden tunnel er allerede åben på 5434. Luk den først |
-| `Mangler DB_PASSWORD i .env` | `.env` mangler eller er ikke udfyldt i mappen, hvor du kører `docker compose` |
+| `Mangler DB_PASSWORD i .env` (eller en anden variabel) | `.env` mangler linjen i mappen, hvor du kører `docker compose` |
 | `relation "movies" does not exist` | Tabellerne er ikke importeret. Se trin 5 under *Opsætning af serveren* |
-| `password authentication failed` | Passwordet i `.env` er ændret, efter databasen blev oprettet. Sæt det gamle tilbage |
+| `password authentication failed` | Passwordet i `.env` passer ikke med databasen. `POSTGRES_PASSWORD` kan ikke ændres, efter databasen er oprettet, så sæt det gamle tilbage. App-kontoens rettes med `ALTER ROLE mydrtv_app PASSWORD '...';` |
+| `permission denied for table ...` | App-kontoen mangler adgang til tabellen. Kør `GRANT`-sætningen fra *To konti i databasen* som superbrugeren |
 | `port is already allocated` | Noget andet bruger porten. Stop det først |
 
 ## Endpoints
