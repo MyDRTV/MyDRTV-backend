@@ -87,6 +87,35 @@ Tjek, at det virker:
 - http://localhost:3000 viser `Hello World!`
 - http://localhost:3000/movies viser en liste over film
 
+### Se og ret data med pgAdmin
+
+pgAdmin er et program til at se og rette i databasen. Tunnelen fra trin 3 skal være åben imens. Postgres.app skal ikke bruges: den er en database på din egen Mac og kender ikke den fælles.
+
+1. Højreklik på **Servers → Register → Server**.
+2. Fanen *General*: giv den et navn, fx `MyDRTV`.
+3. Fanen *Connection*: host `127.0.0.1`, port `5434`, og database, brugernavn og password fra din `.env`. Lad fanen *SSH Tunnel* være tom.
+4. Højreklik på databasen → **Query Tool**, skriv din SQL, og tryk `F5`.
+
+```sql
+SELECT * FROM genres;
+```
+
+`genre_pk` har en regel for, hvordan nøglen må se ud, så en fri tekst bliver afvist. Lad databasen lave nøglen:
+
+```sql
+INSERT INTO genres (genre_pk, genre_name)
+VALUES (replace(gen_random_uuid()::text, '-', ''), 'Dokumentar');
+```
+
+### Ny kolonne kræver to trin
+
+TypeORM ændrer aldrig databasen selv (`synchronize` er `false`). En ny kolonne skal derfor laves begge steder:
+
+1. Kør `ALTER TABLE ... ADD COLUMN ...` i den fælles database.
+2. Tilføj kolonnen i entity-filen, og push.
+
+Mangler trin 1, fejler backenden med `column ... does not exist`. Ændringen i databasen rammer alle og det kørende site med det samme, så sig det i gruppen først.
+
 ## Adgang til serveren
 
 Hver i gruppen har sin egen SSH-nøgle, så I ikke behøver dele root-koden.
@@ -190,12 +219,18 @@ MyDRTV-backend/
 │   ├── app.module.ts         # Rodmodulet: læser .env og forbinder til databasen
 │   ├── app.controller.ts     # GET /  → "Hello World!"
 │   ├── app.service.ts
-│   └── movies/               # Alt om film
-│       ├── movies.module.ts
-│       ├── movies.controller.ts  # Routes: GET /movies
-│       ├── movies.service.ts     # Logik og databasekald
-│       ├── entity/movie.entity.ts    # Tabellen "movies" som en TypeScript-klasse
-│       └── dto/create-movie.dto.ts   # Formen på data, når en film oprettes
+│   ├── movies/               # Alt om film
+│   │   ├── movies.module.ts
+│   │   ├── movies.controller.ts  # Routes: GET /movies
+│   │   ├── movies.service.ts     # Logik og databasekald
+│   │   ├── entity/movie.entity.ts    # Tabellen "movies" som en TypeScript-klasse
+│   │   └── dto/create-movie.dto.ts   # Formen på data, når en film oprettes
+│   ├── genres/               # Samme opbygning som movies
+│   ├── ratings/              # Samme opbygning som movies
+│   ├── users/                # Samme opbygning som movies
+│   ├── watchlist/            # Samme opbygning som movies
+│   ├── auth/                 # Login, guards og roller (ikke skrevet endnu)
+│   └── database/             # Data-source og seed (ikke skrevet endnu)
 ├── test/                     # End-to-end-tests
 ├── nginx/default.conf        # nginx' regler: /api til backenden, resten til web
 ├── .github/workflows/deploy.yml  # Automatisk deploy ved push til main
@@ -220,6 +255,8 @@ HTTP → MoviesController → MoviesService → Repository<Movie> → PostgreSQL
 ```
 
 Nye features laves på samme måde: `nest g resource <navn>`, en entity, og modulet importeres i `AppModule`.
+
+> Et modul virker først, når det står under `imports` i `app.module.ts`. Lige nu er kun `MoviesModule` importeret, så de andre modulers routes svarer ikke endnu.
 
 ## Docker på serveren
 
@@ -289,20 +326,25 @@ docker compose ps
 
 Alle fire skal stå som `running`, og `db` som `healthy`.
 
-**5. Læg data i databasen.** TypeORM opretter ikke tabeller selv (`synchronize` er `false`), så tabeller og data skal ind fra et dump.
+**5. Læg data i databasen.** TypeORM opretter ikke tabeller selv (`synchronize` er `false`), så tabeller og data skal ind fra et dump af den fælles database.
 
-På **din Mac**:
+På **den gamle server**, mens den stadig kører:
 
 ```bash
-/Applications/Postgres.app/Contents/Versions/18/bin/pg_dump \
-  -h 127.0.0.1 -p 5433 -U postgres -d postgres \
-  --no-owner --no-privileges > mydrtv.sql
-ls -lh mydrtv.sql            # må ikke være 0 bytes
+cd ~/MyDRTV-backend
+docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --no-owner --no-privileges' > ~/mydrtv.sql
+ls -lh ~/mydrtv.sql          # må ikke være 0 bytes
+```
+
+På **din Mac** flytter du filen fra den gamle server til den nye:
+
+```bash
+scp root@GAMMEL-IP:~/mydrtv.sql .
 scp mydrtv.sql root@DIN-IP:~/
 rm mydrtv.sql
 ```
 
-På **serveren**:
+På **den nye server**:
 
 ```bash
 ls -lh ~/mydrtv.sql

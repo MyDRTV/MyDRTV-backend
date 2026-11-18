@@ -8,7 +8,7 @@ services:
     env_file: .env
 
     # Inde i Docker hedder databasen "db" og lytter på 5432.
-    # Det overskriver DB_HOST/DB_PORT fra .env, som peger på Postgres.app lokalt.
+    # Det overskriver DB_HOST/DB_PORT fra .env, som lokalt peger på SSH-tunnelen.
     environment:
       DB_HOST: db
       DB_PORT: 5432
