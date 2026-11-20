@@ -88,3 +88,11 @@ SELECT current_user;             -- skal vise mydrtv_app
 SELECT * FROM genres;            -- skal vise de samme rækker som hos superbrugeren
 CREATE TABLE test (id int);      -- skal fejle: permission denied
 ```
+
+Test superbrugeren fra dens egen forbindelse:
+
+```sql
+SELECT current_user;             -- skal vise superbrugeren
+CREATE TABLE test (id int);      -- skal lykkes
+DROP TABLE test;                 -- ryd op igen
+```

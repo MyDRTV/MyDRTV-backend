@@ -146,6 +146,14 @@ SELECT * FROM genres;            -- skal vise de samme rækker som hos superbrug
 CREATE TABLE test (id int);      -- skal fejle: permission denied
 ```
 
+Test superbrugeren fra dens egen forbindelse:
+
+```sql
+SELECT current_user;             -- skal vise superbrugeren
+CREATE TABLE test (id int);      -- skal lykkes
+DROP TABLE test;                 -- ryd op igen
+```
+
 ## Adgang til serveren
 
 Hver i gruppen har sin egen SSH-nøgle, så I ikke behøver dele root-koden.
