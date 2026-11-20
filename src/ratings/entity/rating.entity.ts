@@ -4,17 +4,17 @@ import { Movie } from '../../movies/entity/movie.entity';
 
 @Entity('ratings')
 export class Rating {
-    @PrimaryColumn({ type: 'char', length: 32 })
-    rating_pk!: string;
+  @PrimaryColumn({ type: 'char', length: 32 })
+  rating_pk!: string;
 
-    @ManyToOne(()=> User)
-    @JoinColumn({name: 'user_fk'})
-    user!: User;
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'user_fk' })
+  user!: User;
 
-    @ManyToOne(()=> Movie)
-    @JoinColumn({name: 'movie_fk'})
-    movie_fk: string;
+  @ManyToOne(() => Movie)
+  @JoinColumn({ name: 'movie_fk' })
+  movie!: Movie;
 
-    @Column({ type: 'tinyint' })
-    rating!: number;
+  @Column({ type: 'smallint' })
+  rating!: number;
 }

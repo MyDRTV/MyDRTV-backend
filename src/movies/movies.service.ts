@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Movie } from './entity/movie.entity';
@@ -15,6 +15,22 @@ export class MoviesService {
       order: {
         movie_title: 'ASC',
       },
+    });
+  }
+
+  async findOne(moviePk: string): Promise<Movie> {
+    const movie = await this.moviesRepository.findOne({
+      where: { movie_pk: moviePk },
+    });
+    if (!movie) {
+      throw new NotFoundException('Filmen blev ikke fundet');
+    }
+    return movie;
+  }
+
+  findByMovie(moviePk: string): Promise<Movie[]> {
+    return this.moviesRepository.find({
+      where: { movie_pk: moviePk },
     });
   }
 }

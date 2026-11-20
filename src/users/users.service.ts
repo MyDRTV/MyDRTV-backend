@@ -10,6 +10,17 @@ export class UsersService {
     private readonly userRepository: Repository<User>,
   ) {}
 
+  async findRoleByUserPk(
+    userPk: string,
+  ): Promise<User['user_role'] | undefined> {
+    const user = await this.userRepository.findOne({
+      where: { user_pk: userPk },
+      select: { user_role: true },
+    });
+
+    return user?.user_role;
+  }
+
   findAll(): Promise<User[]> {
     return this.userRepository.find({
       order: {

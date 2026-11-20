@@ -5,11 +5,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MoviesModule } from './movies/movies.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   // DataSource
   imports: [
     MoviesModule,
+    UsersModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

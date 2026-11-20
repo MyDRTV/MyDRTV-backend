@@ -1,14 +1,12 @@
-import {IsInt, IsString, Min, Max, IsNotEmpty} from 'class-validator';
+import { IsInt, IsString, Length, Max, Min } from 'class-validator';
 
-export class CreateRating {
-    @IsString()
-    @IsNotEmpty({ message: 'Ratings skal have et id' })
-    @Min(32)
-    @Max(32)
-    id: string;
+export class CreateRatingDto {
+  @IsString()
+  @Length(32, 32)
+  userId!: string;
 
-    @IsInt()
-    @Min(1)
-    @Max(5)
-    rating: string;
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  rating!: number;
 }

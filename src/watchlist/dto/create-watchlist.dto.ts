@@ -1,8 +1,7 @@
-import {IsNotEmpty, IsDateString} from 'class-validator';
+import { IsString, Length } from 'class-validator';
 
 export class CreateWatchlist {
-
-  @IsDateString()
-  @IsNotEmpty({ message: 'Bruger skal have et tidspunkt for oprettelse' })
-  added_at: number;
+  @IsString()
+  @Length(32, 32)
+  moviePk!: string;
 }
