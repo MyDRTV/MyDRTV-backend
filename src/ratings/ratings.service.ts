@@ -16,6 +16,9 @@ export class RatingsService {
     private readonly userRepository: Repository<User>,
   ) {}
 
+
+  //-------------------  CREATE rating ------------------//
+
   async create(movie: Movie, userId: string, rating: number) {
     const user = await this.userRepository.findOne({
       where: { user_pk: userId },
@@ -43,7 +46,9 @@ export class RatingsService {
     };
   }
 
-  //Henter alle ratings
+
+  //------------------  GET all ratings ------------------//
+
   findAll(): Promise<Rating[]> {
     return this.ratingRepository.find({
       order: {
@@ -52,7 +57,9 @@ export class RatingsService {
     });
   }
 
-  //Henter ratings for en specifik film
+
+  //------------------  FIND ratings by movie ------------------//
+
   findByMovie(moviePk: string): Promise<Rating[]> {
     return this.ratingRepository.find({
       where: {
@@ -63,7 +70,9 @@ export class RatingsService {
     });
   }
 
-  //Opdaterer en rating
+
+  //------------------  UPDATE rating ------------------//
+
   async updateRating(ratingPk: string, userPk: string, rating: number) {
     const result = await this.ratingRepository
       .createQueryBuilder()
@@ -82,7 +91,9 @@ export class RatingsService {
     return { rating_pk: ratingPk, rating };
   }
 
-  //Sletter en rating
+
+  //------------------  DELETE rating ------------------//
+  
   async deleteRating(ratingPk: string, userPk: string): Promise<void> {
     const result = await this.ratingRepository
       .createQueryBuilder()

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException,} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { Watchlist } from './entity/watchlist.entity';
@@ -16,6 +12,9 @@ export class WatchlistService {
     private readonly moviesService: MoviesService,
   ) {}
 
+
+  //------------------ GET watchlist by user ------------------//
+
   findByUser(userPk: string): Promise<Watchlist[]> {
     return this.watchlistRepository.find({
       where: { user_fk: userPk },
@@ -24,6 +23,9 @@ export class WatchlistService {
     });
   }
 
+
+  //------------------ GET watchlist by movie ------------------//
+
   findByMovie(moviePk: string): Promise<Watchlist[]> {
     return this.watchlistRepository.find({
       where: { movie_fk: moviePk },
@@ -31,6 +33,9 @@ export class WatchlistService {
       order: { movie_fk: 'ASC' },
     });
   }
+
+
+  //------------------ ADD movie to watchlist ------------------//
 
   async addMovie(userPk: string, moviePk: string) {
     const movie = await this.moviesService.findOne(moviePk);
@@ -58,7 +63,10 @@ export class WatchlistService {
     return { ...entry, movie };
   }
 
-  async deleteWatchlist(userPk: string, moviePk: string): Promise<void> {
+
+  //------------------ DELETE movie from watchlist ------------------//
+
+  async deleteMovieFromWatchlist(userPk: string, moviePk: string): Promise<void> {
     const result = await this.watchlistRepository.delete({
       user_fk: userPk,
       movie_fk: moviePk,

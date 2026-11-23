@@ -8,7 +8,6 @@ import { PasswordService } from '../common/password/password.service';
 
 @Injectable()
 export class UsersService {
-
     constructor(
         @InjectRepository(User)
         private readonly userRepository: Repository<User>,
@@ -59,19 +58,17 @@ export class UsersService {
         // Partial update data object, kun de felter der skal opdateres
         const updateData: Partial<User> = {};
 
+        // Hvis navnet er defineret, opdater det
         if (updateUserDto.name !== undefined) {
             updateData.user_name = updateUserDto.name;
         }
 
+        // hvis email er defineret, opdater det
         if (updateUserDto.email !== undefined) {
             updateData.user_email = updateUserDto.email;
         }
 
-        // hashed password kommer fra password service
-        if (updateUserDto.password !== undefined) {
-            updateData.user_password = await this.passwordService.hashPassword(updateUserDto.password);
-        }
-
+        // opdater det nye data
         await this.userRepository.update({ user_pk: userId }, updateData);
 
         return {

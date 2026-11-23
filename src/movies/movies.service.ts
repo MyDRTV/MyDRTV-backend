@@ -58,7 +58,7 @@ export class MoviesService {
     await this.moviesRepository.remove(movie);
   }
 
-  // findByGenre(genrePk: string): Promise<Movie[]> {
+  // findByMovie(moviePk: string): Promise<Movie[]> {
   //   return this.moviesRepository.find({
   //     where: { movie_pk: moviePk },
   //   });
