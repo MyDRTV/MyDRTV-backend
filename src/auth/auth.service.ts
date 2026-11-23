@@ -1,4 +1,5 @@
 import {Injectable, UnauthorizedException, ConflictException} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/entity/user.entity';
@@ -14,6 +15,8 @@ export class AuthService {
         private readonly userRepository: Repository<User>,
 
         private readonly passwordService: PasswordService,
+
+        private readonly jwtService: JwtService,
     ) {}
 
     //------------------ Sign up user ------------------//
@@ -94,6 +97,8 @@ export class AuthService {
 
         return {
             message: 'Login succesfuldt',
+            // sub er det felt, JwtAuthGuard læser bruger-id'et fra
+            access_token: await this.jwtService.signAsync({ sub: user.user_pk }),
             user_pk: user.user_pk,
             user_role: user.user_role,
         };

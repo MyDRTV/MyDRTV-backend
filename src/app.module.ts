@@ -4,14 +4,20 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
+import { GenresModule } from './genres/genres.module';
 import { MoviesModule } from './movies/movies.module';
 import { UsersModule } from './users/users.module';
+import { WatchlistModule } from './watchlist/watchlist.module';
 
 @Module({
   // DataSource
   imports: [
+    AuthModule,
+    GenresModule,
     MoviesModule,
     UsersModule,
+    WatchlistModule,
     ConfigModule.forRoot({
       isGlobal: true,
     }),

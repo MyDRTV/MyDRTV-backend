@@ -13,6 +13,7 @@ services:
       DB_USERNAME: ${DB_USERNAME:?Mangler DB_USERNAME i .env}
       DB_PASSWORD: ${DB_PASSWORD:?Mangler DB_PASSWORD i .env}
       DB_DATABASE: ${DB_DATABASE:?Mangler DB_DATABASE i .env}
+      JWT_SECRET: ${JWT_SECRET:?Mangler JWT_SECRET i .env}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       PORT: 3000
 

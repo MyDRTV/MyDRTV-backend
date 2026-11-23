@@ -4,9 +4,10 @@ import { Watchlist } from './entity/watchlist.entity';
 import { WatchlistController } from './watchlist.controller';
 import { WatchlistService } from './watchlist.service';
 import { AuthModule } from '../auth/auth.module';
+import { MoviesModule } from '../movies/movies.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Watchlist]), AuthModule],
+  imports: [TypeOrmModule.forFeature([Watchlist]), AuthModule, MoviesModule],
   controllers: [WatchlistController],
   providers: [WatchlistService],
 })

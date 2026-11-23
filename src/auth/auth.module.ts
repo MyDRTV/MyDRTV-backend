@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -9,6 +11,16 @@ import { PasswordModule } from '../common/password/password.module';
     imports: [
         TypeOrmModule.forFeature([User]),
         PasswordModule,
+
+        // global: JwtService kan bruges af JwtAuthGuard i alle moduler
+        JwtModule.registerAsync({
+            global: true,
+            inject: [ConfigService],
+            useFactory: (config: ConfigService) => ({
+                secret: config.getOrThrow<string>('JWT_SECRET'),
+                signOptions: { expiresIn: '1d' },
+            }),
+        }),
     ],
     controllers: [AuthController],
     providers: [AuthService],
