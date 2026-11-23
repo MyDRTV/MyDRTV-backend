@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 
 import { GenresService } from './genres.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -15,6 +15,7 @@ export class GenresController {
   //------------------ GET all genres ------------------//
   @Get()
   @Roles('admin')
+  @HttpCode(HttpStatus.OK)
   findAll() {
     return this.genresService.findAll();
   }
@@ -22,6 +23,7 @@ export class GenresController {
   //------------------ POST new genre ------------------//
   @Post()
   @Roles('admin')
+  @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateGenre) {
     return this.genresService.create(dto);
   }

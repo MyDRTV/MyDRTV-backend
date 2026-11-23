@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { Roles } from '../auth/decorators/role.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -11,6 +11,7 @@ export class UsersController {
   //------------------ GET all users ------------------//
   @Get()
   @Roles('admin', 'user')
+  @HttpCode(HttpStatus.OK)
   findAll() {
     return this.UsersService.findAll();
   }
@@ -18,6 +19,7 @@ export class UsersController {
   //------------------ GET user by id ------------------//
   @Get(':id')
   @Roles('admin', 'user')
+  @HttpCode(HttpStatus.OK)
   findOne(id: string) {
     return this.UsersService.findByUserPk(id);
   }
@@ -25,6 +27,7 @@ export class UsersController {
   //------------------ GET user role by id ------------------//
   @Get(':id/role')
   @Roles('admin', 'user')
+  @HttpCode(HttpStatus.OK)
   findRole(id: string) {
     return this.UsersService.findRoleByUserPk(id);
   }
@@ -32,6 +35,7 @@ export class UsersController {
   //------------------  UPDATE user by id ------------------//
   @Patch(':id')
   @Roles('admin', 'user')
+  @HttpCode(HttpStatus.OK)
   updateUser(id: string, updateUserDto: any) {
     return this.UsersService.updateUser(id, updateUserDto);
   }
@@ -39,6 +43,7 @@ export class UsersController {
   //------------------  UPDATE user password by id ------------------//
   @Patch(':id/password')
   @Roles('admin', 'user')
+  @HttpCode(HttpStatus.OK)
   updatePassword(id: string, newPassword: string) {
     return this.UsersService.updatePassword(id, newPassword);
   }
@@ -46,6 +51,7 @@ export class UsersController {
   //------------------  DELETE user by id ------------------//
   @Delete(':id')
   @Roles('admin', 'user')
+  @HttpCode(HttpStatus.NO_CONTENT)
   deleteUser(id: string) {
     return this.UsersService.deleteUser(id);
   }

@@ -4,6 +4,7 @@ import { WatchlistService } from './watchlist.service';
 import { CreateWatchlist } from './dto/create-watchlist.dto';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/role.decorator';
+
 @Controller('/watchlist')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class WatchlistController {
@@ -15,6 +16,7 @@ export class WatchlistController {
   @UseGuards(JwtAuthGuard)
   @Get()
   @Roles('user')
+  @HttpCode(HttpStatus.OK)
   findMine(@Req() request: { user?: { sub?: string } }) {
     const userPk = request.user?.sub;
 
@@ -31,6 +33,7 @@ export class WatchlistController {
   @UseGuards(JwtAuthGuard)
   @Post()
   @Roles('user')
+  @HttpCode(HttpStatus.CREATED)
   addMovie(
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
     dto: CreateWatchlist,
@@ -52,7 +55,6 @@ export class WatchlistController {
   @Delete(':id')
   @Roles('user')
   @HttpCode(HttpStatus.NO_CONTENT)
-
   async remove(
     @Param('id') watchlistPk: string,
     @Req() request: { user?: { sub?: string } },
@@ -63,6 +65,6 @@ export class WatchlistController {
       throw new UnauthorizedException();
     }
 
-    await this.watchlistService.deleteWatchlist(watchlistPk, userPk);
+    await this.watchlistService.deleteMovieFromWatchlist(watchlistPk, userPk);
   }
 }
