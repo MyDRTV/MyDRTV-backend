@@ -1,4 +1,4 @@
-import {Body, Controller, Get, Param, Post, ValidationPipe, Req, UnauthorizedException, UseGuards,} from '@nestjs/common';
+import {Body, Controller, Get, Param, Patch, Delete, Post, ValidationPipe, Req, UnauthorizedException, UseGuards,} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateRatingDto } from '../ratings/dto/create-rating.dto';
 import { RatingsService } from '../ratings/ratings.service';
@@ -57,5 +57,26 @@ export class MoviesController {
     return this.ratingsService.create(movie, userPk, dto.rating);
   }
 
-  //---------------ADMIN----------------
+  //=========================== ADMIN ROUTES ===========================//
+
+  //------------------ POST new movie ------------------//
+  @Post()
+  @Roles('admin')
+  create(@Body() dto: any) {
+    return this.moviesService.create(dto);
+  }
+
+  //------------------ PATCH movie by id ------------------//
+  @Patch(':id')
+  @Roles('admin')
+  update(@Param('id') moviePk: string, @Body() dto: any) {
+    return this.moviesService.update(moviePk, dto);
+  }
+
+  //------------------ DELETE movie by id ------------------//
+  @Delete(':id')
+  @Roles('admin')
+  remove(@Param('id') moviePk: string) {
+    return this.moviesService.remove(moviePk);
+  }
 }
