@@ -1,31 +1,16 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Req,
-  UnauthorizedException,
-  UseGuards,
-  ValidationPipe,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+import {Body, Controller, Delete, Get, Param, Patch, Req, UnauthorizedException, UseGuards, ValidationPipe, HttpCode, HttpStatus} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UpdateRatingDto } from './dto/update-rating.dto';
 import { RatingsService } from './ratings.service';
-
-@Controller('api/ratings')
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/role.decorator';
+@Controller('/ratings')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class RatingsController {
   constructor(private readonly ratingsService: RatingsService) {}
 
-  @Get()
-  findAll() {
-    return this.ratingsService.findAll();
-  }
-
   @UseGuards(JwtAuthGuard)
+  @Roles('user')
   @Patch(':id')
   update(
     @Param('id') ratingPk: string,
@@ -43,6 +28,7 @@ export class RatingsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Roles('user')
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(

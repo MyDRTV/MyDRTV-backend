@@ -1,20 +1,23 @@
-import {IsNotEmpty, IsString, Max, Min, IsEmail} from 'class-validator';
+import {IsNotEmpty, IsString, MaxLength, MinLength, IsEmail, IsOptional} from 'class-validator';
 
 export class UpdateUser {
-  @IsString()
-  @Max(50, { message: 'Navn må max være 50 karakterer' })
-  @IsNotEmpty({ message: 'Navn skal være udfyldt' })
-  name: string;
 
-  @IsString({ message: 'Skal være gyldig e-mail-adresse' })
-  @IsEmail()
-  @IsNotEmpty({ message: 'E-mail skal være udfyldt' })
-  @Max(255)
-  email: string;
+    @IsOptional()
+    @IsString()
+    @MaxLength(50, {message: 'Navn må max være 50 karakterer'})
+    @IsNotEmpty({message: 'Navn skal være udfyldt'})
+    name?: string;
 
-  @IsString()
-  @Min(8,  {message: 'Adgangskode skal mindst have 8 karakterer' })
-  @Max(255)
-  @IsNotEmpty({ message: 'Adgangskode skal have en genre' })
-  password: string;
+    @IsOptional()
+    @IsEmail({}, {message: 'Skal være en gyldig e-mail-adresse'})
+    @MaxLength(255)
+    @IsNotEmpty({ message: 'E-mail skal være udfyldt'})
+    email?: string;
+
+    @IsOptional()
+    @IsString()
+    @MinLength(8, {message: 'Adgangskode skal mindst have 8 karakterer'})
+    @MaxLength(255)
+    @IsNotEmpty({message: 'Adgangskode skal være udfyldt'})
+    password?: string;
 }

@@ -21,7 +21,7 @@ export class CreateUser {
   @IsString()
   @Min(8,  {message: 'Adgangskode skal mindst have 8 karakterer' })
   @Max(255)
-  @IsNotEmpty({ message: 'Adgangskode skal have en genre' })
+  @IsNotEmpty({ message: 'Adgangskode skal være udfyldt' })
   password: string;
 
   @IsBoolean()
