@@ -10,10 +10,12 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MoviesService } from './movies.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/role.decorator';
+import { CreateMovieDto } from './dto/create-movie.dto';
+import { MovieIdDto } from './dto/movie-id.dto';
+import { UpdateMovieDto } from './dto/update-movie.dto';
 @Controller('/movies')
 @UseGuards(RolesGuard)
 export class MoviesController {
@@ -57,7 +59,7 @@ export class MoviesController {
   @Post()
   @Roles('admin')
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: any) {
+  create(@Body() dto: CreateMovieDto) {
     return this.moviesService.create(dto);
   }
 
@@ -65,15 +67,15 @@ export class MoviesController {
   @Patch(':id')
   @Roles('admin')
   @HttpCode(HttpStatus.OK)
-  update(@Param('id') moviePk: string, @Body() dto: any) {
-    return this.moviesService.update(moviePk, dto);
+  update(@Param() params: MovieIdDto, @Body() dto: UpdateMovieDto) {
+    return this.moviesService.update(params.id, dto);
   }
 
   //------------------ DELETE movie by id ------------------//
   @Delete(':id')
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') moviePk: string) {
-    return this.moviesService.remove(moviePk);
+  remove(@Param() params: MovieIdDto) {
+    return this.moviesService.remove(params.id);
   }
 }
