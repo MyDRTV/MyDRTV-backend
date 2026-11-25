@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { GenresModule } from './genres/genres.module';
 import { MoviesModule } from './movies/movies.module';
+import { RatingsModule } from './ratings/ratings.module';
 import { UsersModule } from './users/users.module';
 import { WatchlistModule } from './watchlist/watchlist.module';
 
@@ -16,6 +17,7 @@ import { WatchlistModule } from './watchlist/watchlist.module';
     AuthModule,
     GenresModule,
     MoviesModule,
+    RatingsModule,
     UsersModule,
     WatchlistModule,
     ConfigModule.forRoot({

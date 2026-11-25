@@ -5,9 +5,10 @@ import { Rating } from './entity/rating.entity';
 import { RatingsController } from './ratings.controller';
 import { RatingsService } from './ratings.service';
 import { AuthModule } from '../auth/auth.module';
+import { MoviesModule } from '../movies/movies.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Rating, User]), AuthModule],
+  imports: [TypeOrmModule.forFeature([Rating, User]), AuthModule, MoviesModule],
   controllers: [RatingsController],
   providers: [RatingsService],
   exports: [RatingsService],
