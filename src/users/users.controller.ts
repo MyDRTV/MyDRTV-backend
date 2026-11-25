@@ -1,7 +1,22 @@
-import { Controller, Get, Patch, Delete, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Body,
+  Req,
+  ForbiddenException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { Roles } from '../auth/decorators/role.decorator';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { UpdateUser } from './dto/update-user.dto';
+import { UpdatePasswordDto } from './dto/update-password.dto';
+
 @Controller('/users')
 @UseGuards(RolesGuard)
 export class UsersController {
@@ -35,7 +50,27 @@ export class UsersController {
   @Patch(':id')
   @Roles('admin', 'user')
   @HttpCode(HttpStatus.OK)
-  updateUser(id: string, updateUserDto: any) {
+  async updateUser(
+    @Param('id') id: string,
+    @Body() updateUserDto: UpdateUser,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    // Kontrollér at brugeren er logget ind og har adgang til at opdatere denne profil
+    const userPk = request.user?.sub;
+
+    if (!userPk) {
+      throw new ForbiddenException('Bruger ikke identificeret');
+    }
+
+    if (userPk !== id) {
+      const role = await this.UsersService.findRoleByUserPk(userPk);
+
+      if (role !== 'admin') {
+        throw new ForbiddenException(
+          'Du har ikke adgang til at opdatere denne profil',
+        );
+      }
+    }
     return this.UsersService.updateUser(id, updateUserDto);
   }
 
@@ -43,8 +78,16 @@ export class UsersController {
   @Patch(':id/password')
   @Roles('admin', 'user')
   @HttpCode(HttpStatus.OK)
-  updatePassword(id: string, newPassword: string) {
-    return this.UsersService.updatePassword(id, newPassword);
+  updatePassword(
+    @Param('id') id: string,
+    @Body() dto: UpdatePasswordDto,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    if (request.user?.sub !== id) {
+      throw new ForbiddenException('Du kan kun ændre din egen adgangskode');
+    }
+
+    return this.UsersService.updatePassword(id, dto.newPassword);
   }
 
   //------------------  DELETE user by id ------------------//
