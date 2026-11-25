@@ -19,6 +19,10 @@ export class Movie {
   movie_poster_url!: string | null;
 
   @ManyToMany(() => Genre)
-  @JoinTable({ name: 'genre_fk' })
-  genres!: Genre;
+  @JoinTable({
+  name: 'junction_movie_genres',
+  joinColumn: {name: 'movie_fk', referencedColumnName: 'movie_pk'},
+  inverseJoinColumn: {name: 'genre_fk', referencedColumnName: 'genre_fk'},
+  })
+  genres!: Genre[];
 }
