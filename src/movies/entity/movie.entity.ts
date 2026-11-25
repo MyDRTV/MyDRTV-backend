@@ -22,7 +22,7 @@ export class Movie {
   @JoinTable({
   name: 'junction_movie_genres',
   joinColumn: {name: 'movie_fk', referencedColumnName: 'movie_pk'},
-  inverseJoinColumn: {name: 'genre_fk', referencedColumnName: 'genre_fk'},
+  inverseJoinColumn: {name: 'genre_fk', referencedColumnName: 'genre_pk'},
   })
   genres!: Genre[];
 }
