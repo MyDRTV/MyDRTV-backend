@@ -5,6 +5,7 @@ import { Movie } from './entity/movie.entity';
 import { randomUUID } from 'node:crypto';
 import { CreateMovieDto } from './dto/create-movie.dto';
 import { UpdateMovieDto } from './dto/update-movie.dto';
+import { Genre } from '../genres/entity/genre.entity';
 @Injectable()
 export class MoviesService {
   constructor(
@@ -13,6 +14,7 @@ export class MoviesService {
   ) {}
 
   //------------------ GET all movies ------------------//
+
   findAll(): Promise<Movie[]> {
     return this.moviesRepository.find({
       order: {
@@ -22,6 +24,7 @@ export class MoviesService {
   }
 
   //------------------ GET movie by id ------------------//
+
   async findOne(moviePk: string): Promise<Movie> {
     const movie = await this.moviesRepository.findOne({
       where: { movie_pk: moviePk },
@@ -33,6 +36,7 @@ export class MoviesService {
   }
 
   //------------------ POST new movie by id ------------------//
+
   async create(dto: CreateMovieDto): Promise<Movie> {
     const movie = this.moviesRepository.create({
       movie_pk: randomUUID().replace(/-/g, ''),
@@ -46,6 +50,7 @@ export class MoviesService {
   }
 
   //------------------ UPDATE movie by id ------------------//
+
   async update(moviePk: string, dto: UpdateMovieDto): Promise<Movie> {
     const movie = await this.findOne(moviePk);
     Object.assign(movie, dto);
@@ -53,14 +58,52 @@ export class MoviesService {
   }
 
   //------------------ DELETE movie by id ------------------//
+
   async remove(moviePk: string): Promise<void> {
     const movie = await this.findOne(moviePk);
     await this.moviesRepository.remove(movie);
   }
 
-  // findByMovie(moviePk: string): Promise<Movie[]> {
-  //   return this.moviesRepository.find({
-  //     where: { movie_pk: moviePk },
-  //   });
-  // }
-}
+
+  // ------------------ FILTER movie by genre ------------------//
+
+  async filterByGenre(genre: string): Promise<Movie[]> {
+
+      const movies = await this.moviesRepository.find({
+          where: {
+              genre: {
+                  genre_name: genre,
+              },
+          },
+          order: {
+              movie_title: 'ASC',
+          },
+      });
+
+      if (movies.length === 0) {
+          throw new NotFoundException('Ingen film fundet med denne genre');
+      }
+
+      return movies;
+    }
+
+
+    // ------------------ SEARCH movie by title ------------------//
+
+    async searchByTitle(title: string): Promise<Movie[]> {
+      const movies = await this.moviesRepository.find({
+        where: {
+          movie_title: title,
+        },
+        order: {
+          movie_title: 'ASC',
+        },
+      });
+
+      if (movies.length === 0) {
+        throw new NotFoundException('Ingen film fundet med denne titel');
+      }
+
+      return movies;
+    }
+  }

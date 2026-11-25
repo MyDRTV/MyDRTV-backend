@@ -1,17 +1,18 @@
 import {Body, Controller, Get, Param, Patch, Delete, Post, UseGuards, HttpCode, HttpStatus} from '@nestjs/common';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MoviesService } from './movies.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/role.decorator';
+import { CreateMovieDto } from './dto/create-movie.dto';
+import { UpdateMovieDto } from './dto/update-movie.dto';
+
 @Controller('/movies')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 export class MoviesController {
   constructor(
     private readonly moviesService: MoviesService,
   ) {}
 
   //------------------ GET all movies ------------------//
-  @UseGuards(JwtAuthGuard)
   @Get()
   @Roles('user', 'admin')
   @HttpCode(HttpStatus.OK)
@@ -20,7 +21,6 @@ export class MoviesController {
   }
 
   //------------------ GET movie by id ------------------//
-  @UseGuards(JwtAuthGuard)
   @Get(':id')
   @Roles('user', 'admin')
   @HttpCode(HttpStatus.OK)
@@ -28,32 +28,50 @@ export class MoviesController {
     return this.moviesService.findOne(moviePk);
   }
 
+
+  //------------------ FILTER movie by genre ------------------//
+  @Get('filter-by-genre/:genre')
+  @Roles('user', 'admin')
+  @HttpCode(HttpStatus.OK)
+  filterByGenre(@Param('genre') genre: string) {
+    return this.moviesService.filterByGenre(genre);
+  }
+
+  //------------------ SEARCH movie by title ------------------//
+  @Get('search-by-title/:title')
+  @Roles('user', 'admin')
+  @HttpCode(HttpStatus.OK)
+  searchByTitle(@Param('title') title: string) {
+
+    return this.moviesService.searchByTitle(title);
+  }
+
   //=========================== ADMIN ROUTES ===========================//
 
   //------------------ POST new movie ------------------//
-  @UseGuards(JwtAuthGuard)
   @Post()
   @Roles('admin')
-    @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: any) {
+  @HttpCode(HttpStatus.CREATED)
+  create(@Body() dto: CreateMovieDto) {
+    
     return this.moviesService.create(dto);
   }
 
   //------------------ PATCH movie by id ------------------//
-  @UseGuards(JwtAuthGuard)
   @Patch(':id')
   @Roles('admin')
   @HttpCode(HttpStatus.OK)
-  update(@Param('id') moviePk: string, @Body() dto: any) {
+  update(@Param('id') moviePk: string, @Body() dto: UpdateMovieDto) {
+
     return this.moviesService.update(moviePk, dto);
   }
 
   //------------------ DELETE movie by id ------------------//
-  @UseGuards(JwtAuthGuard)
   @Delete(':id')
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') moviePk: string) {
+    
     return this.moviesService.remove(moviePk);
   }
 }

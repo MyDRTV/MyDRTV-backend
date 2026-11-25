@@ -1,13 +1,12 @@
 import { Controller, Get, Post, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 
 import { GenresService } from './genres.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/role.decorator';
 import { CreateGenre } from './dto/create-genre.dto';
 
 @Controller('/genres')
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(RolesGuard)
 export class GenresController {
 
   constructor(private readonly genresService: GenresService) {}

@@ -6,5 +6,5 @@ export class Genre {
     genre_pk!: string;
 
     @Column({type: 'varchar', length: 100})
-    genre_name!: String;
+    genre_name!: string;
 }
