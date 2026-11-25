@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -9,8 +10,8 @@ async function bootstrap() {
   const origins = process.env.CORS_ORIGIN?.split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
-  app.enableCors({ origin: origins?.length ? origins : true });
-
+  app.enableCors({ origin: origins?.length ? origins : true }); // Tillad alle domæner, hvis CORS_ORIGIN ikke er defineret
+  app.useGlobalPipes(new ValidationPipe({ transform: true })); // Brug ValidationPipe globalt for at validere inputdata
   await app.listen(process.env.PORT ?? 3000);
 }
 void bootstrap();

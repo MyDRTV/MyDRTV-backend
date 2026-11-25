@@ -1,20 +1,20 @@
-import {IsNotEmpty, IsString, IsDateString, Max, IsOptional} from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsInt } from 'class-validator';
 
 export class UpdateMovieDto {
   @IsString()
   @IsOptional()
-  @Max(255, { message: 'Titel må max være 255 karakterer' })
+  @MaxLength(255, { message: 'Titel må max være 255 karakterer' })
   title?: string;
 
   @IsString()
-@IsOptional()
+  @IsOptional()
   description?: string;
 
   @IsString()
   @IsOptional()
   genre?: string;
 
-  @IsDateString()
+  @IsInt()
   @IsOptional()
   release_year?: number;
 

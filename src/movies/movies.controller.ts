@@ -1,14 +1,26 @@
-import {Body, Controller, Get, Param, Patch, Delete, Post, UseGuards, HttpCode, HttpStatus} from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Delete,
+  Post,
+  UseGuards,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { MoviesService } from './movies.service';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/role.decorator';
+import { CreateMovieDto } from './dto/create-movie.dto';
+import { UpdateMovieDto } from './dto/update-movie.dto';
+import { MovieIdDto } from './dto/movie-id.dto';
 @Controller('/movies')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class MoviesController {
-  constructor(
-    private readonly moviesService: MoviesService,
-  ) {}
+  constructor(private readonly moviesService: MoviesService) {}
 
   //------------------ GET all movies ------------------//
   @UseGuards(JwtAuthGuard)
@@ -24,8 +36,8 @@ export class MoviesController {
   @Get(':id')
   @Roles('user', 'admin')
   @HttpCode(HttpStatus.OK)
-  findOne(@Param('id') moviePk: string) {
-    return this.moviesService.findOne(moviePk);
+  findOne(@Param() params: MovieIdDto) {
+    return this.moviesService.findOne(params.id);
   }
 
   //=========================== ADMIN ROUTES ===========================//
@@ -34,8 +46,8 @@ export class MoviesController {
   @UseGuards(JwtAuthGuard)
   @Post()
   @Roles('admin')
-    @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: any) {
+  @HttpCode(HttpStatus.CREATED)
+  create(@Body() dto: CreateMovieDto) {
     return this.moviesService.create(dto);
   }
 
@@ -44,8 +56,8 @@ export class MoviesController {
   @Patch(':id')
   @Roles('admin')
   @HttpCode(HttpStatus.OK)
-  update(@Param('id') moviePk: string, @Body() dto: any) {
-    return this.moviesService.update(moviePk, dto);
+  update(@Param() params: MovieIdDto, @Body() dto: UpdateMovieDto) {
+    return this.moviesService.update(params.id, dto);
   }
 
   //------------------ DELETE movie by id ------------------//
@@ -53,7 +65,7 @@ export class MoviesController {
   @Delete(':id')
   @Roles('admin')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') moviePk: string) {
-    return this.moviesService.remove(moviePk);
+  remove(@Param() params: MovieIdDto) {
+    return this.moviesService.remove(params.id);
   }
 }

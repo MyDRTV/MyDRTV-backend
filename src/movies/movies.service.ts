@@ -48,7 +48,20 @@ export class MoviesService {
   //------------------ UPDATE movie by id ------------------//
   async update(moviePk: string, dto: UpdateMovieDto): Promise<Movie> {
     const movie = await this.findOne(moviePk);
-    Object.assign(movie, dto);
+    // Object.assign(movie, dto);
+
+    if (typeof dto.release_year === 'number') {
+      movie.movie_release_year = dto.release_year.toString();
+    }
+    if (typeof dto.title === 'string') {
+      movie.movie_title = dto.title;
+    }
+    if (typeof dto.description === 'string') {
+      movie.movie_description = dto.description;
+    }
+    if (typeof dto.poster_url === 'string') {
+      movie.movie_poster_url = dto.poster_url;
+    }
     return this.moviesRepository.save(movie);
   }
 
