@@ -17,6 +17,9 @@ export class MoviesService {
 
   findAll(): Promise<Movie[]> {
     return this.moviesRepository.find({
+      relations: {
+        genres: true,
+      },
       order: {
         movie_title: 'ASC',
       },
@@ -28,6 +31,9 @@ export class MoviesService {
   async findOne(moviePk: string): Promise<Movie> {
     const movie = await this.moviesRepository.findOne({
       where: { movie_pk: moviePk },
+      relations: {
+        genres: true,
+      },
     });
     if (!movie) {
       throw new NotFoundException('Filmen blev ikke fundet');
@@ -71,9 +77,12 @@ export class MoviesService {
 
       const movies = await this.moviesRepository.find({
           where: {
-              genre: {
+              genres: {
                   genre_name: genre,
               },
+          },
+          relations: {
+              genres: true,
           },
           order: {
               movie_title: 'ASC',
@@ -97,6 +106,9 @@ export class MoviesService {
         },
         order: {
           movie_title: 'ASC',
+        },
+        relations: {
+          genres: true,
         },
       });
 

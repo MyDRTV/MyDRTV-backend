@@ -4,8 +4,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Movie } from '../movies/entity/movie.entity';
 import { User } from '../users/entity/user.entity';
-import { CreateRatingDto } from './dto/create-rating.dto';
 import { Rating } from './entity/rating.entity';
+import { ConflictException } from '@nestjs/common/exceptions/conflict.exception';
 
 @Injectable()
 export class RatingsService {
@@ -19,32 +19,47 @@ export class RatingsService {
 
   //-------------------  CREATE rating ------------------//
 
-  async create(movie: Movie, userId: string, rating: number) {
-    const user = await this.userRepository.findOne({
-      where: { user_pk: userId },
-      select: { user_pk: true },
-    });
+async create(movie: Movie, userId: string, rating: number) {
 
-    if (!user) {
-      throw new NotFoundException('Brugeren blev ikke fundet');
-    }
+  // Find brugeren i databasen
+  const user = await this.userRepository.findOne({
+    where: { user_pk: userId },
+    select: { user_pk: true },
+  });
 
-    const newRating = this.ratingRepository.create({
-      rating_pk: randomUUID().replaceAll('-', ''),
-      movie,
-      user,
-      rating,
-    });
-
-    await this.ratingRepository.insert(newRating);
-
-    return {
-      rating_pk: newRating.rating_pk,
-      moviePk: movie.movie_pk,
-      userId,
-      rating: newRating.rating,
-    };
+  if (!user) {
+    throw new NotFoundException('Brugeren blev ikke fundet');
   }
+
+  // Kontrollér om brugeren allerede har bedømt filmen
+  const existingRating = await this.ratingRepository.findOne({
+    where: {
+      user: { user_pk: userId },
+      movie: { movie_pk: movie.movie_pk },
+    },
+  });
+
+  if (existingRating) {
+    throw new ConflictException('Du har allerede bedømt denne film');
+  }
+
+  // Opret rating
+  const newRating = this.ratingRepository.create({
+    rating_pk: randomUUID().replaceAll('-', ''),
+    movie,
+    user,
+    rating,
+  });
+
+  await this.ratingRepository.save(newRating);
+
+  return {
+    rating_pk: newRating.rating_pk,
+    moviePk: movie.movie_pk,
+    userId,
+    rating: newRating.rating,
+  };
+}
 
 
   //------------------  GET all ratings ------------------//

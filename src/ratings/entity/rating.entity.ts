@@ -1,8 +1,9 @@
-import { Column, Entity, PrimaryColumn, JoinColumn, ManyToOne } from 'typeorm';
+import {Column, Entity, PrimaryColumn, JoinColumn, ManyToOne, Index,} from 'typeorm';
 import { User } from '../../users/entity/user.entity';
 import { Movie } from '../../movies/entity/movie.entity';
 
 @Entity('ratings')
+@Index(['user', 'movie'], { unique: true })
 export class Rating {
   @PrimaryColumn({ type: 'char', length: 32 })
   rating_pk!: string;
