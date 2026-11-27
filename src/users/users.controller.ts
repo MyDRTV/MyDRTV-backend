@@ -34,7 +34,7 @@ export class UsersController {
   @Get(':id')
   @Roles('admin', 'user')
   @HttpCode(HttpStatus.OK)
-  findOne(id: string) {
+  findOne(@Param('id') id: string) {
     return this.UsersService.findByUserPk(id);
   }
 
@@ -42,7 +42,7 @@ export class UsersController {
   @Get(':id/role')
   @Roles('admin', 'user')
   @HttpCode(HttpStatus.OK)
-  findRole(id: string) {
+  findRole(@Param('id') id: string) {
     return this.UsersService.findRoleByUserPk(id);
   }
 
@@ -94,7 +94,7 @@ export class UsersController {
   @Delete(':id')
   @Roles('admin', 'user')
   @HttpCode(HttpStatus.NO_CONTENT)
-  deleteUser(id: string) {
+  deleteUser(@Param('id') id: string) {
     return this.UsersService.deleteUser(id);
   }
 }
