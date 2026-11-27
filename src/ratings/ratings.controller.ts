@@ -17,7 +17,7 @@ export class RatingsController {
   @Get(':id/ratings')
   @Roles('user')
   async findRatings(@Param('id') moviePk: string) {
-    await this.moviesService.findOne(moviePk);
+    await this.moviesService.findMovieById(moviePk);
     return this.ratingsService.findByMovie(moviePk);
   }
 
@@ -31,7 +31,7 @@ export class RatingsController {
   ) {
     const userPk = request.user.sub;
 
-    const movie = await this.moviesService.findOne(moviePk);
+    const movie = await this.moviesService.findMovieById(moviePk);
 
     return this.ratingsService.create(movie, userPk, dto.rating);
   }

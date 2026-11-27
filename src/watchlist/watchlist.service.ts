@@ -38,7 +38,7 @@ export class WatchlistService {
   //------------------ ADD movie to watchlist ------------------//
 
   async addMovie(userPk: string, moviePk: string) {
-    const movie = await this.moviesService.findOne(moviePk);
+    const movie = await this.moviesService.findMovieById(moviePk);
 
     const entry = {
       user_fk: userPk,
